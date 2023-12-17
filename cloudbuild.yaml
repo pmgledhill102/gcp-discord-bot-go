@@ -77,20 +77,19 @@ steps:
   # - name: platform
   #   path: /platform
     
+substitutions:
+  _GOOGLE_CONTAINER_MEMORY_HINT_MB: '128'
+  _GOOGLE_FUNCTION_SIGNATURE_TYPE: http
+  _GOOGLE_FUNCTION_TARGET: handleDiscordMessage
+  _GOOGLE_LABEL_BUILDER_IMAGE: eu.gcr.io/gae-runtimes/buildpacks/google-gae-22/go/builder:go_20231211_RC00
+  _GOOGLE_LABEL_BUILDER_VERSION: go_20231211_RC00
+  _GOOGLE_LABEL_RUN_IMAGE: eu.gcr.io/gae-runtimes/buildpacks/go121/run:go121_20231210_1_21_4_RC00
+  _GOOGLE_RUNTIME: go121
+  _GOOGLE_RUNTIME_IMAGE_REGION: europe-west2
+  _GOOGLE_RUNTIME_VERSION: 1.21.5
+
 timeout: 1500s
-# substitutions:
-#   _GOOGLE_CONTAINER_MEMORY_HINT_MB: '128'
-#   _GOOGLE_FUNCTION_SIGNATURE_TYPE: http
-#   _GOOGLE_FUNCTION_TARGET: helloHttp
-#   _GOOGLE_LABEL_BUILDER_IMAGE: eu.gcr.io/gae-runtimes/buildpacks/google-gae-22/php/builder:php_20231129_RC00
-#   _GOOGLE_LABEL_BUILDER_VERSION: php_20231129_RC00
-#   _GOOGLE_LABEL_RUN_IMAGE: eu.gcr.io/gae-runtimes/buildpacks/php82/run:php82_20231112_8_2_12_RC00
-#   _GOOGLE_RUNTIME: php82
-#   _GOOGLE_RUNTIME_IMAGE_REGION: europe-west2
-#   _GOOGLE_RUNTIME_VERSION: 8.2.12
-#   _X_GOOGLE_GCS_FETCHER_ZIP_ARCHIVES: 'true'
-#   _X_GOOGLE_SKIP_RUNTIME_LAUNCH: 'true'
-#   _X_GOOGLE_TARGET_PLATFORM: gcf
+
 # tags:
 # - p-gcf
 # - r-php82
