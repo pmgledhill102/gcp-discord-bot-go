@@ -70,11 +70,11 @@ steps:
   env:
   - CNB_RUN_IMAGE=eu.gcr.io/gae-runtimes/buildpacks/go121/run:go121_20231210_1_21_4_RC00
   name: eu.gcr.io/gae-runtimes/buildpacks/google-gae-22/php/builder:php_20231129_RC00
-  volumes:
-  - name: layers
-    path: /layers
-  - name: platform
-    path: /platform
+  # volumes:
+  # - name: layers
+  #   path: /layers
+  # - name: platform
+  #   path: /platform
     
 timeout: 1500s
 # substitutions:
