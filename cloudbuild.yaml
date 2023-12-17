@@ -1,0 +1,96 @@
+# === Global Options ===
+options:
+  env:
+  - CNB_APP_DIR=/workspace/discord-bot
+  - CNB_ANALYZED_PATH=/layers/analyzed.toml
+  - CNB_BUILDPACKS_DIR=/cnb/buildpacks
+  - CNB_GROUP_PATH=/layers/group.toml
+  - CNB_LAYERS_DIR=/layers
+  - CNB_PLAN_PATH=/layers/plan.toml
+  - CNB_PLATFORM_DIR=/platform
+  - CNB_PLATFORM_API=0.11
+  - CNB_NO_COLOR=true
+  - CNB_USER_ID=33
+  - CNB_GROUP_ID=33
+#  - CNB_CACHE_IMAGE=eu.gcr.io/play-pen-pup/gcf/europe-west2/c85906c6-ec25-4c05-9606-9658c2779eba/cache:latest
+#  - CNB_PREVIOUS_IMAGE=eu.gcr.io/play-pen-pup/gcf/europe-west2/c85906c6-ec25-4c05-9606-9658c2779eba:latest
+  volumes:
+  - name: layers
+    path: /layers
+  - name: platform
+    path: /platform
+
+# === Build Stages ===
+steps:
+
+## === Stage 1) Fetch ===
+
+# Don't need a 'Fetch' stage, as will already have been pulled form repo
+
+# - args:
+#   - --type=ZipArchive
+#   - --location=gs://gcf-sources-728241575576-europe-west2/playpen-php-gen1-c85906c6-ec25-4c05-9606-9658c2779eba/version-81/function-source.zip
+#   - --dest_dir=/workspace
+#   - --timeout_gcs=false
+#   id: fetch
+#   name: eu.gcr.io/gae-runtimes/utilities/gcs-fetcher:base_20231019_18_04_RC00
+
+## === Stage 2) Pre ===
+
+# Don't know what this does - so skipping for now
+
+# - args:
+#   - --phase=pre
+#   - --app_image_unique=eu.gcr.io/play-pen-pup/gcf/europe-west2/c85906c6-ec25-4c05-9606-9658c2779eba:playpen-php-gen1_version-81
+#   - --app_image_stable=eu.gcr.io/play-pen-pup/gcf/europe-west2/c85906c6-ec25-4c05-9606-9658c2779eba:latest
+#   - --cache_image_unique=eu.gcr.io/play-pen-pup/gcf/europe-west2/c85906c6-ec25-4c05-9606-9658c2779eba/cache:f1bcebf2-28c7-4ec0-a18f-fe05625f926b
+#   - --cache_image_stable=eu.gcr.io/play-pen-pup/gcf/europe-west2/c85906c6-ec25-4c05-9606-9658c2779eba/cache:latest
+#   - --env_var_names=BUILDER_OUTPUT,GOOGLE_RUNTIME,GOOGLE_LABEL_BUILDER_VERSION,GOOGLE_LABEL_BUILDER_IMAGE,GOOGLE_LABEL_RUN_IMAGE,GOOGLE_RUNTIME_IMAGE_REGION,GOOGLE_RUNTIME_VERSION,X_GOOGLE_SKIP_RUNTIME_LAUNCH,GOOGLE_FUNCTION_TARGET,GOOGLE_FUNCTION_SIGNATURE_TYPE,X_GOOGLE_TARGET_PLATFORM,GOOGLE_CONTAINER_MEMORY_HINT_MB,X_GOOGLE_GCS_FETCHER_ZIP_ARCHIVES
+#   - --experimental_skip_retag_cache
+#   entrypoint: /bin/shim
+#   env:
+#   - GOOGLE_RUNTIME=php82
+#   - GOOGLE_LABEL_BUILDER_VERSION=php_20231129_RC00
+#   - GOOGLE_LABEL_BUILDER_IMAGE=eu.gcr.io/gae-runtimes/buildpacks/google-gae-22/php/builder:php_20231129_RC00
+#   - GOOGLE_LABEL_RUN_IMAGE=eu.gcr.io/gae-runtimes/buildpacks/php82/run:php82_20231112_8_2_12_RC00
+#   - GOOGLE_RUNTIME_IMAGE_REGION=europe-west2
+#   - GOOGLE_RUNTIME_VERSION=8.2.12
+#   - X_GOOGLE_SKIP_RUNTIME_LAUNCH=true
+#   - GOOGLE_FUNCTION_TARGET=helloHttp
+#   - GOOGLE_FUNCTION_SIGNATURE_TYPE=http
+#   - X_GOOGLE_TARGET_PLATFORM=gcf
+#   - GOOGLE_CONTAINER_MEMORY_HINT_MB=128
+#   - X_GOOGLE_GCS_FETCHER_ZIP_ARCHIVES=true
+#   id: pre-buildpack
+#   name: eu.gcr.io/gae-runtimes/buildpacks/google-gae-22/php/builder:php_20231129_RC00
+
+## === Stage 3) Cloud Native Build Pack
+
+- id: build
+  args:
+  - --tag=europe-west2-docker.pkg.dev/play-pen-pup/dev-images/gcp-discord-bot-go:latest
+  - europe-west2-docker.pkg.dev/play-pen-pup/dev-images/gcp-discord-bot-go:latest
+  entrypoint: /cnb/lifecycle/creator
+  env:
+  - CNB_RUN_IMAGE=eu.gcr.io/gae-runtimes/buildpacks/go121/run:go121_20231210_1_21_4_RC00
+  name: eu.gcr.io/gae-runtimes/buildpacks/google-gae-22/php/builder:php_20231129_RC00
+
+timeout: 1500s
+# substitutions:
+#   _GOOGLE_CONTAINER_MEMORY_HINT_MB: '128'
+#   _GOOGLE_FUNCTION_SIGNATURE_TYPE: http
+#   _GOOGLE_FUNCTION_TARGET: helloHttp
+#   _GOOGLE_LABEL_BUILDER_IMAGE: eu.gcr.io/gae-runtimes/buildpacks/google-gae-22/php/builder:php_20231129_RC00
+#   _GOOGLE_LABEL_BUILDER_VERSION: php_20231129_RC00
+#   _GOOGLE_LABEL_RUN_IMAGE: eu.gcr.io/gae-runtimes/buildpacks/php82/run:php82_20231112_8_2_12_RC00
+#   _GOOGLE_RUNTIME: php82
+#   _GOOGLE_RUNTIME_IMAGE_REGION: europe-west2
+#   _GOOGLE_RUNTIME_VERSION: 8.2.12
+#   _X_GOOGLE_GCS_FETCHER_ZIP_ARCHIVES: 'true'
+#   _X_GOOGLE_SKIP_RUNTIME_LAUNCH: 'true'
+#   _X_GOOGLE_TARGET_PLATFORM: gcf
+# tags:
+# - p-gcf
+# - r-php82
+# - v-php82_20231112_8_2_12_RC00
+# - b-php_20231129_RC00
