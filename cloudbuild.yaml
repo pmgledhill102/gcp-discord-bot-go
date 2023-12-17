@@ -14,11 +14,7 @@ options:
   - CNB_GROUP_ID=33
 #  - CNB_CACHE_IMAGE=eu.gcr.io/play-pen-pup/gcf/europe-west2/c85906c6-ec25-4c05-9606-9658c2779eba/cache:latest
 #  - CNB_PREVIOUS_IMAGE=eu.gcr.io/play-pen-pup/gcf/europe-west2/c85906c6-ec25-4c05-9606-9658c2779eba:latest
-  volumes:
-  - name: layers
-    path: /layers
-  - name: platform
-    path: /platform
+
 
 # === Build Stages ===
 steps:
@@ -74,7 +70,12 @@ steps:
   env:
   - CNB_RUN_IMAGE=eu.gcr.io/gae-runtimes/buildpacks/go121/run:go121_20231210_1_21_4_RC00
   name: eu.gcr.io/gae-runtimes/buildpacks/google-gae-22/php/builder:php_20231129_RC00
-
+  volumes:
+  - name: layers
+    path: /layers
+  - name: platform
+    path: /platform
+    
 timeout: 1500s
 # substitutions:
 #   _GOOGLE_CONTAINER_MEMORY_HINT_MB: '128'
