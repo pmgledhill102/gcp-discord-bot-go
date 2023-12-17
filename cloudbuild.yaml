@@ -70,6 +70,7 @@ steps:
   env:
   - CNB_RUN_IMAGE=eu.gcr.io/gae-runtimes/buildpacks/go121/run:go121_20231210_1_21_4_RC00
   name: eu.gcr.io/gae-runtimes/buildpacks/google-gae-22/go/builder:go_20231211_RC00
+  dir: discord-bot
   # volumes:
   # - name: layers
   #   path: /layers
