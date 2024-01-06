@@ -105,6 +105,9 @@ func respondBack(w http.ResponseWriter, resType discordgo.InteractionResponseTyp
 		panic(err)
 	}
 
+	// Set the content type to be JSON
+	w.Header().Add("Content-Type", "application/json")
+
 	// Write out the response
 	w.Write(resBytes)
 }
