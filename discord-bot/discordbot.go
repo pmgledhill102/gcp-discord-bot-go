@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	envSignatureKeyKey    = "PUBLIC_SIG_KEY"
+	envSignatureKeyKey    = "PUBLIC_SIG_KEY"    // "abc123"
 	envPubSubProjectIdKey = "PUBSUB_PROJECT_ID" // "play-pen-pup"
 	envPubSubTopicNameKey = "PUBSUB_TOPIC_NAME" // "game-server-operations"
 )
@@ -104,6 +104,9 @@ func respondBack(w http.ResponseWriter, resType discordgo.InteractionResponseTyp
 	if err != nil {
 		panic(err)
 	}
+
+	// Set the content type to be JSON
+	w.Header().Add("Content-Type", "application/json")
 
 	// Write out the response
 	w.Write(resBytes)
