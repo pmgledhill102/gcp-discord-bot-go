@@ -56,11 +56,11 @@ func handleDiscordMessage(w http.ResponseWriter, r *http.Request) {
 	// Verify the message signature
 	publicKeyBytes, err := hex.DecodeString(signatureKey)
 	if err != nil {
-		panic(err)
+		log.Fatalf("Error handling public key, %v", err)
 	}
 
 	if !discordgo.VerifyInteraction(r, ed25519.PublicKey(publicKeyBytes)) {
-		panic("Invalid Signature")
+		log.Fatalf("Invalid Signature")
 	}
 
 	// Try and Unmarshal data into an object
@@ -76,7 +76,7 @@ func handleDiscordMessage(w http.ResponseWriter, r *http.Request) {
 
 	// Disgard anything else other than AppCommand
 	if interaction.Type != discordgo.InteractionApplicationCommand {
-		panic("Can only handle interactions of type 'InteractionApplicationCommand'")
+		log.Fatalf("Can only handle interactions of type 'InteractionApplicationCommand'")
 	}
 
 	// Publish the request to the topic
@@ -102,7 +102,7 @@ func respondBack(w http.ResponseWriter, resType discordgo.InteractionResponseTyp
 	// Marshal the object into a byte slice
 	resBytes, err := json.Marshal(res)
 	if err != nil {
-		panic(err)
+		log.Fatalf("Error when creating JSON string, %v", err)
 	}
 
 	// Set the content type to be JSON
