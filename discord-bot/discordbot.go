@@ -110,7 +110,6 @@ func respondBack(w http.ResponseWriter, resType discordgo.InteractionResponseTyp
 	resBytes, err := json.Marshal(res)
 	if err != nil {
 		log.Fatalf("Error marshalling JSON into byte array: %v", err)
-		panic(err)
 	}
 
 	// Set the content type to be JSON
