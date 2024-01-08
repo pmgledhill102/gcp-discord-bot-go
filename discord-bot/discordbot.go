@@ -15,10 +15,11 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+// Required Environment Variables
 const (
-	envSignatureKeyKey    = "PUBLIC_SIG_KEY"    // "abc123"
-	envPubSubProjectIdKey = "PUBSUB_PROJECT_ID" // "play-pen-pup"
-	envPubSubTopicNameKey = "PUBSUB_TOPIC_NAME" // "game-server-operations"
+	envSignatureKeyKey    = "PUBLIC_SIG_KEY"
+	envPubSubProjectIdKey = "PUBSUB_PROJECT_ID"
+	envPubSubTopicNameKey = "PUBSUB_TOPIC_NAME"
 )
 
 var signatureKey string
@@ -36,12 +37,17 @@ func init() {
 	pubSubProjectId = os.Getenv(envPubSubProjectIdKey)
 	pubSubTopicName = os.Getenv(envPubSubTopicNameKey)
 
+	if signatureKey == "" || pubSubProjectId == "" || pubSubTopicName == "" {
+		log.Fatalf("Error: Required Environment Variables not set %s, %s, %s",
+			envSignatureKeyKey, envPubSubProjectIdKey, envPubSubTopicNameKey)
+	}
+
 	// Create a Pub/Sub client.
 	ctx = context.Background()
 	var err error
 	pubsubClient, err = pubsub.NewClient(ctx, pubSubProjectId)
 	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
+		log.Fatalf("Failed to create Pub/Sub client: %v", err)
 	}
 
 	// Get a Pub/Sub topic.
@@ -56,11 +62,11 @@ func handleDiscordMessage(w http.ResponseWriter, r *http.Request) {
 	// Verify the message signature
 	publicKeyBytes, err := hex.DecodeString(signatureKey)
 	if err != nil {
-		panic(err)
+		log.Fatalf("Unable to decode signature key %v", err)
 	}
 
 	if !discordgo.VerifyInteraction(r, ed25519.PublicKey(publicKeyBytes)) {
-		panic("Invalid Signature")
+		log.Fatalf("Invalid Signature")
 	}
 
 	// Try and Unmarshal data into an object
@@ -74,9 +80,9 @@ func handleDiscordMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Disgard anything else other than AppCommand
+	// Disgard anything else other than an AppCommand
 	if interaction.Type != discordgo.InteractionApplicationCommand {
-		panic("Can only handle interactions of type 'InteractionApplicationCommand'")
+		log.Fatalf("Can only handle interactions of type 'InteractionApplicationCommand' - Type is %d", interaction.Type)
 	}
 
 	// Publish the request to the topic
@@ -91,6 +97,7 @@ func handleDiscordMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Tell Discord to await a response from the job
+	// Need to follow this up with a WebHook call with the actual message
 	respondBack(w, discordgo.InteractionResponseDeferredChannelMessageWithSource)
 }
 
@@ -102,6 +109,7 @@ func respondBack(w http.ResponseWriter, resType discordgo.InteractionResponseTyp
 	// Marshal the object into a byte slice
 	resBytes, err := json.Marshal(res)
 	if err != nil {
+		log.Fatalf("Error marshalling JSON into byte array: %v", err)
 		panic(err)
 	}
 
