@@ -28,7 +28,7 @@ the downsides being an inside in the overhead per request, and higher latency of
 
 Implementing a WebHook interaction pattern using a serverless compute PaaS offering is ideal for
 low cost use-cases. Rather than having to host (and pay for) a daemon running 24x7 on a virtual
-machine or within a mamaged container where you will have to pay per-hour of up-time, with a
+machine or within a managed container where you will have to pay per-hour of up-time, with a
 serverless compute option you will just have to pay for each interaction.
 
 ### Discord and the 3 second problem
@@ -42,6 +42,13 @@ serverless PaaS services exhibit a problem known as 'cold starts'. This is the w
 call to a service after a period of time, will take longer to execute - as the execution
 environment has to be prepared, and the function initialised. This can easily cause the function
 to take longer than the allowed 3 seconds to respond.
+
+This highlights a constraint of most serverless PaaS offering - where once a response has
+been sent to the requester, the processing of the function is suspended. This prevents any
+use of additional threads to continue the processing and send the follow-up message
+
+For this reason - this bot implementation simply copies the received request to a Pub/Sub
+queue, and then returns the acknowledgement.
 
 ### Optimising Language
 
