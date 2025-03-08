@@ -1,0 +1,19 @@
+name: Snyk Scan
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  snyk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Snyk
+        uses: snyk/actions/golang@master
+        env:
+          SNYK_TOKEN:  ${{ secrets.SNYK_TOKEN }}

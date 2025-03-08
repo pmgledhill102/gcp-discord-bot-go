@@ -1,0 +1,25 @@
+name: Trufflehog Scan
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  trufflehog:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+
+      - name: Install Trufflehog
+        run: pip install trufflehog
+
+      - name: Run Trufflehog
+        run: trufflehog filesystem --directory . --json
