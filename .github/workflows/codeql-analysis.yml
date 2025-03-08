@@ -2,9 +2,11 @@ name: "CodeQL Analysis"
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    branches: [DISABLED]
+#   push:
+#     branches: [main]
+#   pull_request:
+#     branches: [main]
 
 jobs:
   analyze:
