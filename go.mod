@@ -3,13 +3,13 @@ module pmgledhill.com/gcp-playpen/discordbot
 go 1.24
 
 require (
-	cloud.google.com/go/pubsub v1.47.0
+	cloud.google.com/go/pubsub v1.48.0
 	github.com/GoogleCloudPlatform/functions-framework-go v1.9.1
 	github.com/bwmarrin/discordgo v0.28.1
 )
 
 require (
-	cloud.google.com/go v0.118.3 // indirect
+	cloud.google.com/go v0.119.0 // indirect
 	cloud.google.com/go/auth v0.15.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.7 // indirect
 	cloud.google.com/go/compute/metadata v0.6.0 // indirect
