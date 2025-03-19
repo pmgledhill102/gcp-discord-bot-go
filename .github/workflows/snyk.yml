@@ -13,11 +13,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Debug Secret
-        run: "echo SNYK_TOKEN start: ${SNYK_TOKEN:0:5} "
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        
       - name: Set up Snyk
         uses: snyk/actions/golang@master
         env:
