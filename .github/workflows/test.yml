@@ -28,6 +28,9 @@ jobs:
           echo "Emulator likely started. Checking ports..."
           # Optional: Check if the port is listening (netstat might not be in cloud-sdk, try ss or nc)
           ss -tulnp | grep 8085 || echo "Port 8085 not confirmed listening yet, proceeding anyway."
+          echo "======"
+          gcloud beta emulators pubsub env-init
+          echo "======"
 
       - name: Configure gcloud and Emulator Host
         run: |
