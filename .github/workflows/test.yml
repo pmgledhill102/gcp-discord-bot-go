@@ -35,7 +35,6 @@ jobs:
           # The emulator is running in the same container, so connect via localhost
           echo "PUBSUB_EMULATOR_HOST=localhost:8085" >> $GITHUB_ENV
           echo "PUBSUB_PROJECT_ID=test-project" >> $GITHUB_ENV
-          PUBSUB_PROJECT_ID
 
           # --- REMOVED THE FOLLOWING LINES ---
           # echo "Disabling gcloud credential loading for emulator usage..."
