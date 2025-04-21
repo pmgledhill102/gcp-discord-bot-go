@@ -25,7 +25,7 @@ jobs:
         ports:
           - 8085:8085
         options:
-          --entrypoint /bin/sh -c gcloud beta emulators pubsub start --project=test-project-id --host-port=0.0.0.0:8085
+          --entrypoint "/bin/sh -c gcloud beta emulators pubsub start --project=test-project-id --host-port=0.0.0.0:8085"
 
     steps:
       - name: Checkout code
