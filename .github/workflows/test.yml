@@ -22,7 +22,7 @@ jobs:
         ports:
           - 8085:8085
         options: >
-          --entrypoint /bin/sh # Specify the shell as the entrypoint
+          --entrypoint /bin/sh
           -c 'gcloud beta emulators pubsub start --project=test-project --host-port=0.0.0.0:8085'
 
     steps:
