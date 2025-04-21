@@ -24,12 +24,8 @@ jobs:
         # Map the emulator's default port (8085)
         ports:
           - 8085:8085
-        
-        # We pass the command and flags to start the emulator.
-        options: >- # Pass arguments to the entrypoint (gcloud)
-            beta emulators pubsub start
-            --project=test-project-id
-            --host-port=0.0.0.0:8085
+        options:
+          --entrypoint /bin/sh -c gcloud beta emulators pubsub start --project=test-project-id --host-port=0.0.0.0:8085
 
     steps:
       - name: Checkout code
