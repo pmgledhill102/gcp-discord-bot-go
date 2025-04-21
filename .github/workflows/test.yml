@@ -42,29 +42,26 @@ jobs:
 
           $(gcloud beta emulators pubsub env-init)
 
-          # --- REMOVED THE FOLLOWING LINES ---
           # echo "Disabling gcloud credential loading for emulator usage..."
           # gcloud config set auth/disable_credentials true
-          # --- END OF REMOVED LINES ---
 
           # Ensure the project is set (might be inherited, but explicit is safer)
           echo "Setting gcloud project..."
           gcloud config set project test-project
 
           echo "gcloud configured for emulator at $PUBSUB_EMULATOR_HOST project $(gcloud config get-value project)"
-          # echo "Credential checks disabled: $(gcloud config get-value auth/disable_credentials)" # Also remove this verification line
 
           echo "Create Test Topic"
           echo "======"
           
           echo "Attempting to create topic 'my-test-topic'..."
-          gcloud pubsub topics create my-test-topic
+          gcloud beta pubsub topics create my-test-topic
           echo "Topic created successfully."
 
           echo "Publish Text Message"
           echo "======"
           echo "Publishing text message..."
-          gcloud pubsub topics publish my-test-topic --message "Hello from GitHub Actions using Pub/Sub Emulator!"
+          gcloud beta pubsub topics publish my-test-topic --message "Hello from GitHub Actions using Pub/Sub Emulator!"
           echo "Text message published."
 
           echo "Publish JSON Message"
@@ -74,12 +71,12 @@ jobs:
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           MESSAGE_JSON="{\"id\": \"workflow-${{ github.run_id }}\", \"status\": \"testing\", \"timestamp\": \"${TIMESTAMP}\"}"
           echo "Publishing: ${MESSAGE_JSON}"
-          gcloud pubsub topics publish my-test-topic --message "${MESSAGE_JSON}"
+          gcloud beta pubsub topics publish my-test-topic --message "${MESSAGE_JSON}"
           echo "JSON message published."
 
           echo "Verify Topics"
           echo "======"
 
           echo "Verifying topics..."
-          gcloud pubsub topics list
+          gcloud beta pubsub topics list
     
