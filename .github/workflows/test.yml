@@ -35,18 +35,17 @@ jobs:
           # The emulator is running in the same container, so connect via localhost
           echo "PUBSUB_EMULATOR_HOST=localhost:8085" >> $GITHUB_ENV
 
-          echo "Disabling gcloud credential loading for emulator usage..."
-          # Add this command to prevent auth checks when using emulator
-          gcloud config set auth/disable_credentials true
+          # --- REMOVED THE FOLLOWING LINES ---
+          # echo "Disabling gcloud credential loading for emulator usage..."
+          # gcloud config set auth/disable_credentials true
+          # --- END OF REMOVED LINES ---
 
           # Ensure the project is set (might be inherited, but explicit is safer)
           echo "Setting gcloud project..."
           gcloud config set project test-project
 
           echo "gcloud configured for emulator at $PUBSUB_EMULATOR_HOST project $(gcloud config get-value project)"
-          echo "Credential checks disabled: $(gcloud config get-value auth/disable_credentials)" # Verify setting
-
-      # ----- The following test steps remain the same -----
+          # echo "Credential checks disabled: $(gcloud config get-value auth/disable_credentials)" # Also remove this verification line
 
       - name: Create Test Topic
         run: |
