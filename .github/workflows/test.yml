@@ -1,74 +1,68 @@
-name: "Test with Emulator"
+name: Pub/Sub Emulator Test
 
 on:
+  push:
+    branches: [ main ]
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  test-with-pubsub:
+  test-pubsub-emulator:
     runs-on: ubuntu-latest
+    container:
+      image: gcr.io/google.com/cloudsdktool/cloud-sdk:latest
 
-    permissions:
-      contents: read
-      id-token: write
-      packages: write
-      actions: write
-
-    services:
-      pubsub-emulator:
-        image: gcr.io/google.com/cloudsdktool/cloud-sdk:latest
-        ports:
-          - 8085:8085
-        options: >
-          --entrypoint gcloud 
-          beta emulators pubsub start --project=test-project --host-port=0.0.0.0:8085
-  
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Google Cloud SDK (if not using a GCloud container for steps)
-        uses: google-github-actions/setup-gcloud@v2
-        # No credentials needed for emulator interaction usually
-
-      - name: Wait for Pub/Sub emulator (Optional but recommended)
+      - name: Start Pub/Sub Emulator in Background
         run: |
-          echo "Waiting for Pub/Sub emulator..."
-          # Simple wait loop - check if the port is open
-          # nc (netcat) needs to be available. Install if needed: sudo apt-get update && sudo apt-get install -y netcat-openbsd
-          # Or use alternative like curl
-          timeout 15s bash -c 'until nc -z localhost 8085; do sleep 1; done' || (echo "Emulator did not start in time" && exit 1)
-          echo "Emulator ready!"
+          echo "Starting Pub/Sub Emulator..."
+          # Start emulator, listen on all interfaces inside the container
+          # Send it to the background using '&'
+          gcloud beta emulators pubsub start --project=test-project --host-port=0.0.0.0:8085 &
+          # Wait for the emulator to initialize (adjust sleep time if necessary)
+          sleep 10
+          echo "Emulator likely started. Checking ports..."
+          # Optional: Check if the port is listening (netstat might not be in cloud-sdk, try ss or nc)
+          ss -tulnp | grep 8085 || echo "Port 8085 not confirmed listening yet, proceeding anyway."
 
-      - name: Configure gcloud CLI to use the emulator
+      - name: Set PubSub Emulator Host Env Var
         run: |
-          # Set the environment variable for gcloud and client libraries
-          export PUBSUB_EMULATOR_HOST=localhost:8085
-          echo "PUBSUB_EMULATOR_HOST=localhost:8085" >> $GITHUB_ENV # Make env var available to subsequent steps
+          echo "Setting PUBSUB_EMULATOR_HOST for subsequent steps..."
+          # The emulator is running in the same container, so connect via localhost
+          echo "PUBSUB_EMULATOR_HOST=localhost:8085" >> $GITHUB_ENV
+          # Ensure the project is set (might be inherited from container env, but explicit is safer)
+          gcloud config set project test-project
+          echo "gcloud configured for emulator at $PUBSUB_EMULATOR_HOST project $(gcloud config get-value project)"
 
-          # Configure gcloud (optional if using client libraries directly with env var)
-          gcloud config set project test-project-id
-          gcloud config set api_endpoint_overrides/pubsub http://localhost:8085/
+      # ----- The following test steps remain the same -----
 
-      - name: Interact with Pub/Sub Emulator using gcloud CLI
+      - name: Create Test Topic
         run: |
-          echo "Creating topic..."
-          gcloud pubsub topics create my-topic --project=test-project-id
+          echo "Attempting to create topic 'my-test-topic'..."
+          gcloud pubsub topics create my-test-topic
+          echo "Topic created successfully."
 
-          echo "Listing topics..."
-          gcloud pubsub topics list --project=test-project-id
-
-          echo "Publishing message..."
-          gcloud pubsub topics publish my-topic --message "Hello Emulator!" --project=test-project-id
-
-      - name: Run Application Tests
-        env:
-          PUBLIC_SIG_KEY: key
-          PUBSUB_PROJECT_ID: test-project-id
-          PUBSUB_TOPIC_NAME: test-topic
-          PUBSUB_EMULATOR_HOST: localhost:8085
+      - name: Publish Text Message
         run: |
-          echo "Running tests..."
-          # Replace with your test command, e.g., go test ./...
+          echo "Publishing text message..."
+          gcloud pubsub topics publish my-test-topic --message "Hello from GitHub Actions using Pub/Sub Emulator!"
+          echo "Text message published."
+
+      - name: Publish JSON Message
+        run: |
+          echo "Publishing JSON message..."
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          MESSAGE_JSON="{\"id\": \"workflow-${{ github.run_id }}\", \"status\": \"testing\", \"timestamp\": \"${TIMESTAMP}\"}"
+          echo "Publishing: ${MESSAGE_JSON}"
+          gcloud pubsub topics publish my-test-topic --message "${MESSAGE_JSON}"
+          echo "JSON message published."
+
+      - name: List Topics (Verification)
+        run: |
+          echo "Verifying topics..."
+          gcloud pubsub topics list
+    
