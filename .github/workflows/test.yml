@@ -40,6 +40,8 @@ jobs:
           echo "PUBSUB_EMULATOR_HOST=localhost:8085" >> $GITHUB_ENV
           echo "PUBSUB_PROJECT_ID=test-project" >> $GITHUB_ENV
 
+          $(gcloud beta emulators pubsub env-init)
+
           # --- REMOVED THE FOLLOWING LINES ---
           # echo "Disabling gcloud credential loading for emulator usage..."
           # gcloud config set auth/disable_credentials true
