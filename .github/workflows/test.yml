@@ -17,15 +17,16 @@ jobs:
       actions: write
 
     services:
-      pubsub:
-        # Use the Google Cloud SDK image containing the emulators
-        image: gcr.io/google.com/cloudsdktool/cloud-sdk:latest # Or a specific version like cloud-sdk:470.0.0-emulators
-
-        # Map the emulator's default port (8085)
+      pubsub-emulator:
+        # Use the official Google Cloud SDK image
+        image: gcr.io/google.com/cloudsdktool/cloud-sdk:latest
+        # Expose the emulator's default port
         ports:
-          - 8085:8085
-        options: >-
-          --entrypoint "/bin/sh -c gcloud beta emulators pubsub start --project=test-project-id --host-port=0.0.0.0:8085"
+          - 8085:8085 # Map container port 8085 to host port 8085
+        # Command to start the emulator within the service container
+        options: > # Use multi-line block scalar '>' for readability if needed
+          --entrypoint /bin/sh # Specify the shell as the entrypoint
+          -c 'gcloud beta emulators pubsub start --project=test-project --host-port=0.0.0.0:8085'
 
     steps:
       - name: Checkout code
