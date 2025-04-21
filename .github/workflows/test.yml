@@ -21,9 +21,12 @@ jobs:
         image: gcr.io/google.com/cloudsdktool/cloud-sdk:latest
         ports:
           - 8085:8085
-        options: >
-          --entrypoint "/bin/sh -c gcloud beta emulators pubsub start --project=test-project --host-port=0.0.0.0:8085"
-
+        # Use the direct 'command:' key - this works reliably in the runner
+        command: >  # Use multi-line style for readability
+          gcloud beta emulators pubsub start
+          --project=test-project
+          --host-port=0.0.0.0:8085 # Listen on all interfaces within container
+  
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
