@@ -27,13 +27,14 @@ jobs:
           sleep 10
           echo "Emulator likely started. Checking ports..."
           # Optional: Check if the port is listening (netstat might not be in cloud-sdk, try ss or nc)
-          ss -tulnp | grep 8085 || echo "Port 8085 not confirmed listening yet, proceeding anyway."
+          # ss -tulnp | grep 8085 || echo "Port 8085 not confirmed listening yet, proceeding anyway."
           echo "======"
           gcloud beta emulators pubsub env-init
           echo "======"
 
-      - name: Configure gcloud and Emulator Host
-        run: |
+          echo "Configure gcloud and Emulator Host"
+          echo "======"
+
           echo "Setting PUBSUB_EMULATOR_HOST for subsequent steps..."
           # The emulator is running in the same container, so connect via localhost
           echo "PUBSUB_EMULATOR_HOST=localhost:8085" >> $GITHUB_ENV
@@ -51,20 +52,22 @@ jobs:
           echo "gcloud configured for emulator at $PUBSUB_EMULATOR_HOST project $(gcloud config get-value project)"
           # echo "Credential checks disabled: $(gcloud config get-value auth/disable_credentials)" # Also remove this verification line
 
-      - name: Create Test Topic
-        run: |
+          echo "Create Test Topic"
+          echo "======"
+          
           echo "Attempting to create topic 'my-test-topic'..."
           gcloud pubsub topics create my-test-topic
           echo "Topic created successfully."
 
-      - name: Publish Text Message
-        run: |
+          echo "Publish Text Message"
+          echo "======"
           echo "Publishing text message..."
           gcloud pubsub topics publish my-test-topic --message "Hello from GitHub Actions using Pub/Sub Emulator!"
           echo "Text message published."
 
-      - name: Publish JSON Message
-        run: |
+          echo "Publish JSON Message"
+          echo "======"
+
           echo "Publishing JSON message..."
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           MESSAGE_JSON="{\"id\": \"workflow-${{ github.run_id }}\", \"status\": \"testing\", \"timestamp\": \"${TIMESTAMP}\"}"
@@ -72,8 +75,9 @@ jobs:
           gcloud pubsub topics publish my-test-topic --message "${MESSAGE_JSON}"
           echo "JSON message published."
 
-      - name: List Topics (Verification)
-        run: |
+          echo "Verify Topics"
+          echo "======"
+
           echo "Verifying topics..."
           gcloud pubsub topics list
     
