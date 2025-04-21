@@ -1,0 +1,76 @@
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test-with-pubsub:
+    runs-on: ubuntu-latest
+
+    services:
+      pubsub:
+        # Use the Google Cloud SDK image containing the emulators
+        image: gcr.io/google.com/cloudsdktool/cloud-sdk:latest # Or a specific version like cloud-sdk:470.0.0-emulators
+
+        # Map the emulator's default port (8085)
+        ports:
+          - 8085:8085
+        
+        # We pass the command and flags to start the emulator.
+        options: >- # Pass arguments to the entrypoint (gcloud)
+            beta emulators pubsub start
+            --project=test-project-id
+            --host-port=0.0.0.0:8085
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Google Cloud SDK (if not using a GCloud container for steps)
+      uses: google-github-actions/setup-gcloud@v2
+      # No credentials needed for emulator interaction usually
+
+    - name: Wait for Pub/Sub emulator (Optional but recommended)
+      run: |
+        echo "Waiting for Pub/Sub emulator..."
+        # Simple wait loop - check if the port is open
+        # nc (netcat) needs to be available. Install if needed: sudo apt-get update && sudo apt-get install -y netcat-openbsd
+        # Or use alternative like curl
+        timeout 15s bash -c 'until nc -z localhost 8085; do sleep 1; done' || (echo "Emulator did not start in time" && exit 1)
+        echo "Emulator ready!"
+
+    - name: Configure gcloud CLI to use the emulator
+      run: |
+        # Set the environment variable for gcloud and client libraries
+        export PUBSUB_EMULATOR_HOST=localhost:8085
+        echo "PUBSUB_EMULATOR_HOST=localhost:8085" >> $GITHUB_ENV # Make env var available to subsequent steps
+
+        # Configure gcloud (optional if using client libraries directly with env var)
+        gcloud config set project test-project-id
+        gcloud config set api_endpoint_overrides/pubsub http://localhost:8085/
+
+    - name: Interact with Pub/Sub Emulator using gcloud CLI
+      run: |
+        echo "Creating topic..."
+        gcloud pubsub topics create my-topic --project=test-project-id
+
+        echo "Listing topics..."
+        gcloud pubsub topics list --project=test-project-id
+
+        echo "Publishing message..."
+        gcloud pubsub topics publish my-topic --message "Hello Emulator!" --project=test-project-id
+
+    # - name: Run Application Tests
+    #   env:
+      env:
+        PUBLIC_SIG_KEY: key
+        PUBSUB_PROJECT_ID: test-project-id
+        PUBSUB_TOPIC_NAME: test-topic
+        PUBSUB_EMULATOR_HOST: localhost:8085
+
+    #      PUBSUB_EMULATOR_HOST: localhost:8085 # Ensure tests also pick up the emulator host
+    #      GOOGLE_CLOUD_PROJECT: test-project-id
+    #   run: |
+    #     # Your test command here (e.g., pytest, go test, mvn test)
+    #     # Ensure your application code or test setup uses the
+    #     # PUBSUB_EMULATOR_HOST environment variable to connect.
