@@ -5,7 +5,7 @@ go 1.24
 require (
 	cloud.google.com/go/pubsub v1.49.0
 	github.com/GoogleCloudPlatform/functions-framework-go v1.9.2
-	github.com/bwmarrin/discordgo v0.28.1
+	github.com/bwmarrin/discordgo v0.29.0
 )
 
 require (
