@@ -33,7 +33,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Google Cloud SDK (if not using a GCloud container for steps)
         uses: google-github-actions/setup-gcloud@v2
