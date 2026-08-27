@@ -27,7 +27,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # Pin the toolchain to go.mod so autobuild does not fall back to whatever
       # Go version happens to be preinstalled on the runner.
