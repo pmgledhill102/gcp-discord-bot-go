@@ -63,6 +63,11 @@ jobs:
         run: |
           gcloud config set project test-project-id
           gcloud config set api_endpoint_overrides/pubsub http://localhost:8085/
+          # PUBSUB_EMULATOR_HOST is honoured by the client libraries, not by the
+          # gcloud CLI: the endpoint override points gcloud at the emulator but it
+          # still refuses to run without an active account. Turn off credential
+          # lookup so the CLI can talk to the emulator unauthenticated.
+          gcloud config set auth/disable_credentials true
 
       - name: Interact with Pub/Sub Emulator using gcloud CLI
         run: |
