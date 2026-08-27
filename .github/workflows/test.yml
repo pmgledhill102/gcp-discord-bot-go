@@ -12,69 +12,79 @@ jobs:
 
     permissions:
       contents: read
-      id-token: write
-      packages: write
-      actions: write
 
-    services:
-      pubsub:
-        # Use the Google Cloud SDK image containing the emulators
-        image: gcr.io/google.com/cloudsdktool/cloud-sdk:latest # Or a specific version like cloud-sdk:470.0.0-emulators
-
-        # Map the emulator's default port (8085)
-        ports:
-          - 8085:8085
-        
-        # We pass the command and flags to start the emulator.
-        options: >- # Pass arguments to the entrypoint (gcloud)
-            beta emulators pubsub start
-            --project=test-project-id
-            --host-port=0.0.0.0:8085
+    env:
+      PUBSUB_PROJECT_ID: test-project-id
+      PUBSUB_EMULATOR_HOST: localhost:8085
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Set up Google Cloud SDK (if not using a GCloud container for steps)
-        uses: google-github-actions/setup-gcloud@v3
-        # No credentials needed for emulator interaction usually
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
 
-      - name: Wait for Pub/Sub emulator (Optional but recommended)
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+        # No credentials needed for emulator interaction
+
+      # NOTE: the emulator is started here with `docker run` rather than as a
+      # `services:` container. A service container's `options:` are passed to
+      # `docker create` as flags, not as the container command, so the emulator
+      # arguments were being parsed as an image name ("beta") and the job failed
+      # before it ever ran. Service containers cannot override a command, so the
+      # emulator has to be launched explicitly.
+      - name: Start Pub/Sub emulator
+        run: |
+          docker run -d --name pubsub-emulator -p 8085:8085 \
+            gcr.io/google.com/cloudsdktool/cloud-sdk:emulators \
+            gcloud beta emulators pubsub start \
+              --project=test-project-id \
+              --host-port=0.0.0.0:8085
+
+      - name: Wait for Pub/Sub emulator
         run: |
           echo "Waiting for Pub/Sub emulator..."
-          # Simple wait loop - check if the port is open
-          # nc (netcat) needs to be available. Install if needed: sudo apt-get update && sudo apt-get install -y netcat-openbsd
-          # Or use alternative like curl
-          timeout 15s bash -c 'until nc -z localhost 8085; do sleep 1; done' || (echo "Emulator did not start in time" && exit 1)
+          # Uses bash's /dev/tcp rather than nc, so the check needs nothing installed.
+          timeout 60s bash -c 'until (exec 3<>/dev/tcp/127.0.0.1/8085) 2>/dev/null; do sleep 1; done' \
+            || { echo "Emulator did not start in time"; docker logs pubsub-emulator; exit 1; }
           echo "Emulator ready!"
 
       - name: Configure gcloud CLI to use the emulator
         run: |
-          # Set the environment variable for gcloud and client libraries
-          export PUBSUB_EMULATOR_HOST=localhost:8085
-          echo "PUBSUB_EMULATOR_HOST=localhost:8085" >> $GITHUB_ENV # Make env var available to subsequent steps
-
-          # Configure gcloud (optional if using client libraries directly with env var)
           gcloud config set project test-project-id
           gcloud config set api_endpoint_overrides/pubsub http://localhost:8085/
 
       - name: Interact with Pub/Sub Emulator using gcloud CLI
         run: |
           echo "Creating topic..."
-          gcloud pubsub topics create my-topic --project=test-project-id
+          gcloud pubsub topics create test-topic --project=test-project-id
 
           echo "Listing topics..."
           gcloud pubsub topics list --project=test-project-id
 
           echo "Publishing message..."
-          gcloud pubsub topics publish my-topic --message "Hello Emulator!" --project=test-project-id
+          gcloud pubsub topics publish test-topic --message "Hello Emulator!" --project=test-project-id
 
       - name: Run Application Tests
         env:
           PUBLIC_SIG_KEY: key
-          PUBSUB_PROJECT_ID: test-project-id
           PUBSUB_TOPIC_NAME: test-topic
-          PUBSUB_EMULATOR_HOST: localhost:8085
-        run: |
-          echo "Running tests..."
-          # Replace with your test command, e.g., go test ./...
+        run: go test ./...
+
+      - name: Emulator logs
+        if: always()
+        run: docker logs pubsub-emulator || true
+
+      - name: Stop Pub/Sub emulator
+        if: always()
+        run: docker rm -f pubsub-emulator || true

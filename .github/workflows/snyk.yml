@@ -9,11 +9,28 @@ jobs:
   snyk:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+
+    # SNYK_TOKEN is an Actions secret. Dependabot-authored pull requests are only
+    # given *Dependabot* secrets, so the token is empty there and the scan fails
+    # with a 401 on every dependency bump. Read it into the env so the steps below
+    # can detect its absence and skip rather than fail.
+    env:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Report missing Snyk token
+        if: env.SNYK_TOKEN == ''
+        run: |
+          echo "::warning title=Snyk scan skipped::SNYK_TOKEN is not available to this workflow run, so the Snyk scan was skipped."
+          echo "SNYK_TOKEN is not available to this run - skipping the Snyk scan." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Dependabot pull requests only receive Dependabot secrets. To scan them, add SNYK_TOKEN under Settings > Secrets and variables > Dependabot." >> "$GITHUB_STEP_SUMMARY"
+
       - name: Set up Snyk
+        if: env.SNYK_TOKEN != ''
         uses: snyk/actions/golang@master
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
