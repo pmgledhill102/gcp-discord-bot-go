@@ -1,0 +1,116 @@
+# Cloud Run service definition for the Discord interactions endpoint.
+#
+#   gcloud run services replace deploy/service.yaml --region europe-west2
+#
+# Replace PROJECT_ID, the region, and the image URL before applying. The image
+# has to exist first -- see "Deploying to Cloud Run" in the README for the two
+# ways to build it.
+#
+# Nearly every non-obvious setting here exists for one reason: Discord gives an
+# interaction endpoint 3 seconds to respond, and a scale-to-zero service pays a
+# cold start on the first request after idle. The README explains each one; the
+# comments below are the short version.
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: discord-bot
+  labels:
+    # Lets `gcloud run services replace` find the service without --region.
+    cloud.googleapis.com/location: europe-west2
+  annotations:
+    # Discord signs every request with Ed25519 but cannot authenticate to
+    # Google, so the endpoint has to be reachable from the internet and the
+    # signature check in the handler is the security boundary. Pair this with
+    # the allUsers invoker binding shown in the README -- ingress alone does
+    # not make the service callable.
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        # --- The settings that decide whether you make 3 seconds ---
+
+        # Extra CPU during startup and for 10s afterwards, billed only while
+        # starting. `gcloud run deploy` turns this on for new services; a YAML
+        # that omits it is relying on a default that is not yours to assume.
+        run.googleapis.com/startup-cpu-boost: 'true'
+
+        # gVisor rather than a microVM. Google's own guidance is gen1 for
+        # services sensitive to cold starts and frequent scaling from zero,
+        # gen2 for steady traffic that can absorb "somewhat slower cold
+        # starts". This workload verifies a signature and publishes one Pub/Sub
+        # message -- nothing here needs a microVM.
+        run.googleapis.com/execution-environment: gen1
+
+        # CPU allocated only while a request is in flight (request-based
+        # billing). Left unset, Cloud Run bills the whole instance lifetime,
+        # which is how a bot that "scales to zero" turns up on the invoice as
+        # an always-on one. Anything that keeps knocking -- an uptime check, a
+        # warming ping -- makes that lifetime 24/7.
+        run.googleapis.com/cpu-throttling: 'true'
+
+        # Scale to zero, which is the point of the design and also the source
+        # of the cold start. minScale: '1' removes cold starts entirely and
+        # removes the near-zero cost with them; see the README before changing
+        # it. maxScale is a blast-radius cap, not a capacity plan.
+        autoscaling.knative.dev/minScale: '0'
+        autoscaling.knative.dev/maxScale: '2'
+    spec:
+      # Discord has already given up at 3 seconds and retries nothing, so a
+      # long timeout only keeps doomed instances alive. This covers the
+      # deferred-ack path with room to spare.
+      timeoutSeconds: 30
+
+      containerConcurrency: 80
+
+      # Needs roles/pubsub.publisher on the topic below. Do not leave this
+      # unset: the default compute service account is over-privileged.
+      serviceAccountName: discord-bot@PROJECT_ID.iam.gserviceaccount.com
+
+      containers:
+        - image: europe-west2-docker.pkg.dev/PROJECT_ID/discord-bot/discord-bot:latest
+
+          ports:
+            - name: http1
+              containerPort: 8080
+
+          env:
+            # Public key from the Discord developer portal. It is a public
+            # key -- it verifies signatures, it does not create them -- so a
+            # plain env var is appropriate. Use secretKeyRef if your posture
+            # says otherwise.
+            - name: PUBLIC_SIG_KEY
+              value: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+            - name: PUBSUB_PROJECT_ID
+              value: 'PROJECT_ID'
+            - name: PUBSUB_TOPIC_NAME
+              value: 'discord-ops'
+            # Optional. Set it and the functions framework serves the handler
+            # at "/"; leave it out and the endpoint is "/handleDiscordMessage".
+            # Whichever you choose has to match the interactions endpoint URL
+            # registered with Discord.
+            # - name: FUNCTION_TARGET
+            #   value: 'handleDiscordMessage'
+
+          resources:
+            limits:
+              # gen1 permits less than 512Mi; this workload does not need more.
+              cpu: '1'
+              memory: 512Mi
+
+      # Deliberately no startupProbe.
+      #
+      # Cloud Run's default is a TCP check that passes as soon as the port
+      # binds, and this app finishes every piece of initialisation -- reading
+      # config, building the Pub/Sub client -- before it listens, so an open
+      # port genuinely means ready. An explicit HTTP probe can only retry every
+      # periodSeconds, and the minimum is 1 second: miss the first attempt on a
+      # cold container and you have spent a third of Discord's budget waiting
+      # to be asked again. Note also that startupProbe is Optional+Computed --
+      # deleting the block later is a no-op, not a revert, so it has to stay
+      # absent rather than be removed.
+
+  traffic:
+    - percent: 100
+      latestRevision: true
