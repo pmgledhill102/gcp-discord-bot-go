@@ -171,9 +171,47 @@ deploy commands below; `deploy/service.yaml` already names it.
 
 ### Build and deploy
 
-There is no Dockerfile — both routes below use Google Cloud buildpacks to build a Go binary
-straight from source. They differ in one way that matters operationally: the URL path Discord
-has to be given.
+Three routes. The first deploys a released image and is the one to reach for in anything you
+intend to keep; the other two build from source with Google Cloud buildpacks and are what you
+want while iterating on the code. They differ in one way that matters operationally: the URL
+path Discord has to be given.
+
+__From the published image.__ A `v*` tag here publishes
+`ghcr.io/pmgledhill102/gcp-discord-bot-go` to GHCR — see
+[Releases and versioning](#releases-and-versioning). Cloud Run pulls public images from GHCR
+directly, so there is nothing to build:
+
+```sh
+gcloud run deploy discord-bot \
+  --image ghcr.io/pmgledhill102/gcp-discord-bot-go:0.9.0 \
+  --region europe-west2 \
+  --allow-unauthenticated \
+  --execution-environment gen1 \
+  --cpu-boost \
+  --cpu-throttling \
+  --cpu 1 \
+  --memory 512Mi \
+  --min-instances 0 \
+  --max-instances 2 \
+  --timeout 30 \
+  --set-env-vars PUBLIC_SIG_KEY=${PUBLIC_SIG_KEY},PUBSUB_PROJECT_ID=${PUBSUB_PROJECT_ID},PUBSUB_TOPIC_NAME=${PUBSUB_TOPIC_NAME}
+```
+
+Interactions endpoint URL: `https://<service-url>/handleDiscordMessage`. The image sets no
+`FUNCTION_TARGET`, so the framework serves the handler at its own path rather than at the root.
+
+This is the only one of the three routes where what is running has a name that identifies the
+code inside it. The two below build from whatever source happens to be checked out, which is
+exactly what you want in a tight edit-deploy loop and exactly what you do not want in
+production.
+
+Two caveats on pulling from GHCR. Cloud Run caches public GHCR images for up to an hour, so a
+re-pushed tag does not take effect immediately — one more reason releases are immutable
+versions rather than a moving `latest`. And Google recommends fronting an external registry
+with an [Artifact Registry remote
+repository](https://cloud.google.com/artifact-registry/docs/repositories/remote-overview) for
+availability; the direct pull is fine for a bot that redeploys on a merged Dependabot PR, but
+if a GHCR outage during a deploy is unacceptable, that is the fix.
 
 __As a Cloud Run function.__ The buildpack sets `FUNCTION_TARGET`, and the functions framework
 then serves that one handler at the service root:
@@ -228,7 +266,7 @@ paths.
 ### Applying the tuned settings from YAML
 
 `deploy/service.yaml` carries every setting below with its reasoning inline. Edit the project
-ID, region and image URL, then:
+ID, region and image version, then:
 
 ```sh
 gcloud run services replace deploy/service.yaml --region europe-west2
@@ -339,6 +377,91 @@ gcloud run services update discord-bot \
 
 Check that the settings survived the next `gcloud functions deploy`; the two APIs manage the
 same underlying resource and only one of them knows about these fields.
+
+## Releases and versioning
+
+Pushing a `v*` tag runs [`.github/workflows/release.yml`](.github/workflows/release.yml),
+which builds [`Dockerfile`](Dockerfile) for `linux/amd64` and `linux/arm64`, checks the image
+actually starts and serves, and pushes it to
+`ghcr.io/pmgledhill102/gcp-discord-bot-go`. The package is public, so its tags can be listed
+without authenticating — which is what lets a consumer's Dependabot see that a new version
+exists.
+
+The git tag carries a `v` and the image tag does not, following the usual registry
+convention:
+
+| Git tag | Image |
+| ------- | ----- |
+| `v0.9.0` | `ghcr.io/pmgledhill102/gcp-discord-bot-go:0.9.0` |
+
+__There is deliberately no `latest`__, and no floating major or major-minor tag either — no
+`0`, no `0.9`. A tag that moves
+lets a consumer's image reference stay unchanged while the code underneath it changes, which
+is the exact failure this repo publishes an image to avoid: a deployed revision whose
+identifier tells you nothing about what is in it. Name a version; let Dependabot propose the
+next one.
+
+### Cutting a release
+
+```sh
+git tag -a v0.9.0 -m "v0.9.0"
+git push origin v0.9.0
+```
+
+Tag a commit on `main` that has passed CI. The workflow needs no secrets — it authenticates
+to GHCR as `GITHUB_TOKEN` with `packages: write`.
+
+### While this is below 1.0.0
+
+The first release is `v0.9.0` rather than `v1.0.0`, and that is a statement about review
+rather than about polish. Below 1.0.0 the convention is that every position shifts up — the
+MINOR position becomes the breaking one, and PATCH behaves as a minor — because
+[semver §4](https://semver.org/#spec-item-4) makes no stability promise there at all.
+
+The consumer's auto-merge gate implements exactly that shift, so the choice has teeth:
+
+| Bump | What happens downstream |
+| ---- | ----------------------- |
+| `0.9.0` → `0.9.1` | Auto-merges and deploys |
+| `0.9.0` → `0.10.0` | Held for a human |
+| `0.9.0` → `1.0.0` | Held for a human |
+
+So while the version stays below 1.0.0, anything beyond a genuine patch gets looked at before
+it reaches production. That is the point of starting here: the container's contract with its
+environment is already stable and in production, but the repo has only just started publishing
+an artefact, and the release apparatus itself deserves a few cycles of scrutiny before it is
+trusted to land changes unattended.
+
+Worth knowing that this protection is not automatic. `dependabot/fetch-metadata` compares
+version positions literally with no 0.x case, so it reports `0.9.0` → `0.10.0` as a plain
+minor; the guard that catches it is a deliberate extra step in the consumer's workflow.
+
+__Cut `v1.0.0`__ once a release has been through the full path unattended — tag, image,
+Dependabot pull request, auto-merge, deploy — and nothing in the next section is still
+expected to move. From that point the table above stops applying and the ordinary rules take
+over: patch and minor land themselves, majors wait for a human.
+
+### What the version numbers promise
+
+Semantic versioning here is load-bearing rather than decorative, because at least one consumer
+auto-merges Dependabot bumps and holds the rest for a human. A breaking change released a
+position too low does not get reviewed — it merges itself and deploys. Below 1.0.0 read the
+table above; at and beyond it:
+
+- __MAJOR__ — anything that makes an existing deployment stop working when the image tag is
+  swapped and nothing else changes. A new required environment variable, or a rename of one;
+  a change to the endpoint path Discord is pointed at; a change to the response contract; a
+  change to the container's port, user or entrypoint; a new IAM permission the service account
+  needs.
+- __MINOR__ — new behaviour that an existing deployment can ignore. A new optional environment
+  variable with a backwards-compatible default, an additional handler, a dependency upgrade
+  that changes what the service does without changing what it requires.
+- __PATCH__ — bug fixes, security and dependency bumps with no observable change in behaviour,
+  base image updates, build changes.
+
+The test for MAJOR is deliberately about the *deployment*, not about the Go API: this artefact
+is consumed as a container, so "breaking" means the container's contract with its environment,
+not the package's contract with a compiler.
 
 ## More Information
 

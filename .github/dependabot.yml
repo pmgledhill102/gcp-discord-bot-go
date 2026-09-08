@@ -17,12 +17,22 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
-
-  # Enable updates for Go modules
     assignees:
       - "pmgledhill102"
 
+  # Enable updates for Go modules
   - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    assignees:
+      - "pmgledhill102"
+
+  # Enable updates for the Dockerfile's base images. The builder stage is a
+  # version tag Dependabot can bump; the distroless runtime is not -- its Debian
+  # release is part of the repository name rather than the tag, so a move to
+  # static-debian13 stays a deliberate edit.
+  - package-ecosystem: "docker"
     directory: "/"
     schedule:
       interval: "weekly"
