@@ -73,7 +73,7 @@ spec:
         # fall back on by design -- see "Releases and versioning" in the README.
         # Swap this for your own Artifact Registry path if you build from source
         # instead, or if you front GHCR with a remote repository.
-        - image: ghcr.io/pmgledhill102/gcp-discord-bot-go:0.9.0
+        - image: ghcr.io/pmgledhill102/gcp-discord-bot-go:0.10.0
 
           ports:
             - name: http1
