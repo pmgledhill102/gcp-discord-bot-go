@@ -1,0 +1,142 @@
+# Approves Dependabot pull requests whose largest version jump is patch or
+# minor and enables auto-merge, so they land themselves when checks pass and
+# sit unmerged when they do not. Majors are never auto-merged: they are the
+# pull requests worth a human's attention.
+#
+# Below 1.0.0 the MINOR position is the breaking one. semver §4 makes no
+# stability promise there, and the near universal convention is that 0.x
+# shifts every position up: minor behaves as major, patch as minor. But
+# fetch-metadata compares positions literally with no 0.x case, so
+# `0.21.4 -> 0.33.0` reports semver-minor and matched the gate below. Twelve
+# minor versions of axios is not a minor change (agentic-coding-config#394).
+#
+# So a 0.x bump that moves the minor position is refused, while a 0.x bump
+# that moves only the patch position still auto-merges -- that one is the 0.x
+# equivalent of a patch, and refusing it would strand ecosystems that sit
+# below 1.0 indefinitely, Rust crates especially.
+#
+# GitHub's documented pattern (fetch-metadata + `gh pr merge --auto`). Both API
+# calls use a personal access token rather than GITHUB_TOKEN, for two separate
+# reasons:
+#
+#   - The approval must not use GITHUB_TOKEN, because GitHub refuses it:
+#     "GitHub Actions is not permitted to approve pull requests". A repository
+#     setting lifts this, but for every workflow in the repository -- a wider
+#     grant than one Dependabot job needs.
+#
+#   - The merge must not use GITHUB_TOKEN, because a merge performed with it
+#     does not trigger other workflows. Where a push to the default branch runs
+#     a deploy or an apply, GITHUB_TOKEN auto-merges land changes that never
+#     ship -- silent drift arrived at by automation.
+#
+# So the job fails loudly when the token is missing rather than falling back.
+#
+# Setup, without which every patch/minor Dependabot PR fails this check:
+#
+#   1. A fine-grained PAT with Contents: read and write, Pull requests: read
+#      and write, scoped to the repositories running this workflow.
+#   2. Stored as a **Dependabot** secret named AUTOMERGE_PAT (Settings ->
+#      Secrets and variables -> Dependabot). NOT an Actions secret: runs
+#      triggered by Dependabot read from the Dependabot store, and a secret in
+#      the wrong store is simply empty at run time with no error.
+#   3. "Allow auto-merge" enabled in Settings -> General.
+#   4. Merge commits enabled on the repository. `--merge` below fails while
+#      allow_merge_commit is false, and Dependabot PRs then stop merging with
+#      no obvious cause -- the defect found on 29 of 44 repos in
+#      agentic-coding-config#352.
+#
+# Cooldown lives in dependabot.yml: a release must age before Dependabot
+# proposes it, which is the supply-chain guard that makes auto-merge tolerable.
+#
+# This file is intended to be BYTE-IDENTICAL across every repo that runs the
+# auto-merge apparatus, so that a blob-SHA comparison across the estate detects
+# drift. Nothing here names a single repository -- the guard below is scoped by
+# owner, not by repository, for exactly that reason. Keep it that way.
+name: Dependabot Auto-merge
+
+on: pull_request
+
+# Read-only is sufficient: fetch-metadata reads the pull request, and both
+# writes -- the approval and the merge -- go through the PAT instead.
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  auto-merge:
+    # The PR AUTHOR, not github.actor. github.actor is whoever caused the run,
+    # which is not Dependabot when a human re-runs the workflow or pushes to
+    # the branch -- this condition silently skipped three open Dependabot PRs
+    # on this repository before 2026-09-04 (paul-context#137).
+    #
+    # repository_owner rather than repository: a fork under another owner is
+    # still excluded, and the file stays identical across repos.
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository_owner == 'pmgledhill102'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch update metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Scans updated-dependencies-json rather than the previous-version
+      # output, and the difference is the whole point. fetch-metadata derives
+      # update-type from the largest jump across the group, but previous-version
+      # from updatedDependencies[0] alone -- the FIRST dependency only. So in a
+      # group, previous-version describes one arbitrary member while the gate
+      # above describes all of them. Guarding on it would let a 0.x dependency
+      # through whenever a 1.x one happened to sort first, which is precisely
+      # the grouped shape most of this estate's Dependabot PRs arrive in.
+      #
+      # Refuses only when one of the first two positions moved, so
+      # `0.54.0 -> 0.55.0` is left for a human while `0.103.10 -> 0.103.15`
+      # still merges itself. Comparing positions rather than matching a "0."
+      # prefix keeps a bare "0" and a v-prefixed "v0.5.0" on the correct side,
+      # and keeps 10.x off it.
+      - name: Check for breaking pre-1.0 bumps
+        id: pre_release
+        env:
+          DEPS_JSON: ${{ steps.metadata.outputs.updated-dependencies-json }}
+        run: |
+          names="$(printf '%s' "$DEPS_JSON" | jq -r '
+            [ .[]
+              | . as $d
+              | (($d.prevVersion // "") | ltrimstr("v") | split(".")) as $p
+              | (($d.newVersion  // "") | ltrimstr("v") | split(".")) as $n
+              | select($p[0] == "0" and ($p[0] != $n[0] or $p[1] != $n[1]))
+              | "\($d.dependencyName) \($d.prevVersion) -> \($d.newVersion)"
+            ] | join("; ")')"
+          if [ -n "$names" ]; then
+            echo "::notice::Pre-1.0 dependency whose minor position moved. Below 1.0.0 that is the breaking position, even though update-type reports it as a minor. Left for a human: $names"
+            echo "blocked=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "blocked=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # update-type for a grouped PR is the largest jump in the group, so a
+      # group containing one major is treated as a major and skipped.
+      - name: Approve and enable auto-merge (patch/minor)
+        if: steps.pre_release.outputs.blocked == 'false' && (steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor')
+        env:
+          GH_TOKEN: ${{ secrets.AUTOMERGE_PAT }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::AUTOMERGE_PAT is not set in the Dependabot secret store. Refusing to fall back to GITHUB_TOKEN: Actions may not approve pull requests, and a GITHUB_TOKEN merge does not trigger the workflows that run on a push to the default branch. See the header of this workflow."
+            exit 1
+          fi
+          gh pr review --approve "$PR_URL"
+          # --merge, not --squash. Merge-commit is the estate's default merge
+          # method (agentic-coding-config#348). Squash drops commit-message
+          # trailers, so a `Closes #N` in a commit silently fails to close its
+          # issue -- the audit trail failing quietly rather than loudly.
+          #
+          # The setting is not the behaviour: after the next bump lands,
+          # `git log --merges --oneline -1` on the default branch either shows
+          # a merge commit or it does not. Verify rather than assume.
+          gh pr merge --auto --merge "$PR_URL"
+
+      - name: Leave majors for a human
+        if: steps.metadata.outputs.update-type == 'version-update:semver-major'
+        run: echo "Major update -- deliberately not auto-merged. Review and merge by hand."
