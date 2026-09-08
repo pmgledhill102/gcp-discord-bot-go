@@ -248,7 +248,7 @@ directly, so there is nothing to build:
 
 ```sh
 gcloud run deploy discord-bot \
-  --image ghcr.io/pmgledhill102/gcp-discord-bot-go:0.9.0 \
+  --image ghcr.io/pmgledhill102/gcp-discord-bot-go:0.10.0 \
   --region europe-west2 \
   --allow-unauthenticated \
   --execution-environment gen1 \
@@ -457,7 +457,7 @@ convention:
 
 | Git tag | Image |
 | ------- | ----- |
-| `v0.9.0` | `ghcr.io/pmgledhill102/gcp-discord-bot-go:0.9.0` |
+| `v0.10.0` | `ghcr.io/pmgledhill102/gcp-discord-bot-go:0.10.0` |
 
 __There is deliberately no `latest`__, and no floating major or major-minor tag either — no
 `0`, no `0.9`. A tag that moves
@@ -469,8 +469,9 @@ next one.
 ### Cutting a release
 
 ```sh
-git tag -a v0.9.0 -m "v0.9.0"
-git push origin v0.9.0
+VERSION=v0.11.0
+git tag -a "$VERSION" -m "$VERSION"
+git push origin "$VERSION"
 ```
 
 Tag a commit on `main` that has passed CI. The workflow needs no secrets — it authenticates
