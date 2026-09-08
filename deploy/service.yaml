@@ -2,9 +2,9 @@
 #
 #   gcloud run services replace deploy/service.yaml --region europe-west2
 #
-# Replace PROJECT_ID, the region, and the image URL before applying. The image
-# has to exist first -- see "Deploying to Cloud Run" in the README for the two
-# ways to build it.
+# Replace PROJECT_ID and the region before applying, and pick the image version
+# below. See "Deploying to Cloud Run" in the README for the three ways to get an
+# image, and "Releases and versioning" for what the version number promises.
 #
 # Nearly every non-obvious setting here exists for one reason: Discord gives an
 # interaction endpoint 3 seconds to respond, and a scale-to-zero service pays a
@@ -69,7 +69,11 @@ spec:
       serviceAccountName: discord-bot@PROJECT_ID.iam.gserviceaccount.com
 
       containers:
-        - image: europe-west2-docker.pkg.dev/PROJECT_ID/discord-bot/discord-bot:latest
+        # A released image, pinned to an exact version. There is no `latest` to
+        # fall back on by design -- see "Releases and versioning" in the README.
+        # Swap this for your own Artifact Registry path if you build from source
+        # instead, or if you front GHCR with a remote repository.
+        - image: ghcr.io/pmgledhill102/gcp-discord-bot-go:1.0.0
 
           ports:
             - name: http1

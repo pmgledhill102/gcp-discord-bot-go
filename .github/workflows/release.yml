@@ -1,0 +1,128 @@
+name: "Release"
+
+# Publishes a versioned container image so consumers can depend on a release
+# rather than clone main. Nothing here runs on a branch push: the tag is the
+# release, and an image built from a floating branch identifies nothing.
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  publish-image:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      # Required to push to ghcr.io as GITHUB_TOKEN. Not a default.
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive image tags and labels
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          # github.repository is already lowercase here; GHCR rejects anything
+          # else, so a repo rename to mixed case would need a literal instead.
+          images: ghcr.io/${{ github.repository }}
+          # The exact version and nothing else. `latest` -- and the floating
+          # `v1` and `v1.2` tags metadata-action can also emit -- would each let
+          # the consumer's image reference stay unchanged while the code
+          # underneath moves, which is precisely what this workflow exists to
+          # stop. The consumer names a version; Dependabot proposes the bump.
+          tags: |
+            type=semver,pattern={{version}}
+          flavor: |
+            latest=false
+
+      # Built for the runner's own architecture and loaded into the local
+      # daemon, because `load` cannot take a multi-platform result. The layers
+      # are cached, so the multi-platform build below reuses this one's amd64
+      # half rather than repeating it.
+      - name: Build for the smoke test
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: gcp-discord-bot-go:smoke-test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # A build that succeeds proves the compiler was happy, which is not the
+      # question. This asks whether the artefact runs: right entry point, right
+      # architecture, a base image that can execute a static binary, and the
+      # certificate bundle the Pub/Sub client needs.
+      #
+      # PUBSUB_EMULATOR_HOST is what makes this possible without credentials --
+      # the client library takes it as permission to skip credential lookup, and
+      # the connection is lazy, so nothing has to be listening on that port for
+      # init() to complete.
+      #
+      # The probe is GET / and not the handler path. With no FUNCTION_TARGET
+      # set, the framework serves the function at /handleDiscordMessage, and
+      # that handler calls log.Fatalf on an invalid signature -- probing it
+      # would kill the container and fail the release for the wrong reason. A
+      # 404 from the mux proves the server is up without invoking anything.
+      - name: Smoke test the image
+        run: |
+          docker run -d --name smoke-test -p 8080:8080 \
+            -e PUBLIC_SIG_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
+            -e PUBSUB_PROJECT_ID=smoke-test \
+            -e PUBSUB_TOPIC_NAME=smoke-test \
+            -e PUBSUB_EMULATOR_HOST=127.0.0.1:8085 \
+            gcp-discord-bot-go:smoke-test
+
+          echo "Waiting for the container to serve..."
+          for _ in $(seq 30); do
+            if [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/)" = "404" ]; then
+              echo "Image serves HTTP."
+              exit 0
+            fi
+            docker inspect -f '{{.State.Running}}' smoke-test | grep -qx true \
+              || { echo "Container exited."; break; }
+            sleep 1
+          done
+
+          echo "Image did not serve within 30s."
+          docker logs smoke-test || true
+          exit 1
+
+      - name: Clean up the smoke test container
+        if: always()
+        run: docker rm -f smoke-test || true
+
+      # One-time manual step after the first successful run: GHCR packages are
+      # created private regardless of the repository's visibility, and the
+      # org.opencontainers.image.source label in the Dockerfile links the
+      # package to this repo but does not make it public. Flip it once at
+      # https://github.com/users/pmgledhill102/packages/container/gcp-discord-bot-go/settings
+      # -- until then a consumer's Dependabot cannot enumerate tags without a
+      # registry credential, which is the complexity being avoided.
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          # arm64 costs almost nothing here because the Dockerfile
+          # cross-compiles with Go rather than emulating the toolchain, and its
+          # absence is a silent trap for anyone pulling the image onto an Arm
+          # machine. Cloud Run itself is amd64.
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha

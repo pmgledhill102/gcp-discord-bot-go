@@ -1,0 +1,15 @@
+# Keep the build context to what `go build ./cmd` actually reads. Everything
+# else only serves to invalidate the COPY layer -- a README edit should not
+# force a recompile.
+
+.git
+.github
+.vscode
+deploy
+*.md
+LICENSE
+
+# Read by the builder before the context is filtered, so excluding them is safe
+# and stops a comment edit here from triggering a recompile.
+Dockerfile
+.dockerignore
