@@ -45,8 +45,12 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 FROM gcr.io/distroless/static-debian12:nonroot
 
 # Links the GHCR package to this repository. Without it the package is orphaned:
-# it does not inherit the repo's visibility or permissions, and the "Source"
-# link on the package page goes nowhere.
+# it does not inherit the repo's access permissions, and the "Source" link on
+# the package page goes nowhere.
+#
+# Permissions, not visibility -- GitHub documents those as separate, and a
+# linked package is said to inherit only the former. See the note above the
+# push step in .github/workflows/release.yml for what was actually observed.
 LABEL org.opencontainers.image.source="https://github.com/pmgledhill102/gcp-discord-bot-go"
 
 COPY --from=builder /discord-bot /discord-bot
