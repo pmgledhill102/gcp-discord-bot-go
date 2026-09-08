@@ -315,6 +315,15 @@ func TestConfigFromEnvReadsAllThree(t *testing.T) {
 // not one so `go test ./...` still works on a laptop with nothing running.
 func TestPublishesToTopic(t *testing.T) {
 	if os.Getenv("PUBSUB_EMULATOR_HOST") == "" {
+		// Skipping is a local convenience, and a liability anywhere it is
+		// supposed to run: a test that silently opts out is a test that can
+		// stop covering anything without anyone noticing. test.yml starts an
+		// emulator, so its absence under CI is a broken workflow rather than a
+		// missing local tool, and should fail rather than pass quietly.
+		if os.Getenv("CI") != "" {
+			t.Fatal("PUBSUB_EMULATOR_HOST is not set but CI is: the emulator should be running, see .github/workflows/test.yml")
+		}
+
 		t.Skip("PUBSUB_EMULATOR_HOST is not set; skipping the Pub/Sub integration test")
 	}
 

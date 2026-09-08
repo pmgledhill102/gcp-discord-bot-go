@@ -90,8 +90,13 @@ jobs:
       # the real Pub/Sub publisher and creates its own topic. It skips itself
       # when PUBSUB_EMULATOR_HOST is unset, so `go test ./...` still passes on a
       # laptop with nothing running.
+      #
+      # -v so the log distinguishes a test that ran from one that skipped.
+      # Without it `go test` prints nothing for a skip and the package still
+      # reports "ok", which makes a silently disabled integration test
+      # indistinguishable from a passing one.
       - name: Run Application Tests
-        run: go test ./...
+        run: go test -v ./...
 
       - name: Emulator logs
         if: always()
