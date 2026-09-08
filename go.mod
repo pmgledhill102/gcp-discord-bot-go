@@ -1,4 +1,4 @@
-module pmgledhill.com/gcp-playpen/discordbot
+module github.com/pmgledhill102/gcp-discord-bot-go
 
 go 1.25.0
 

@@ -1,15 +1,34 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 
-	// Blank-import the function package so the init() runs
 	"github.com/GoogleCloudPlatform/functions-framework-go/funcframework"
-	_ "pmgledhill.com/gcp-playpen/discordbot"
+	discordbot "github.com/pmgledhill102/gcp-discord-bot-go"
 )
 
 func main() {
+	ctx := context.Background()
+
+	// Build the handler before serving, so a misconfigured revision fails to
+	// start rather than accepting traffic and failing every request. The
+	// framework path shares this handler -- HandlerFromEnv builds at most one
+	// per process -- so this costs nothing beyond moving the error earlier.
+	//
+	// log.Fatalf is correct here and only here: this is the deployable's
+	// startup, not a request. Nothing on the request path may exit (#49).
+	h, err := discordbot.HandlerFromEnv(ctx)
+	if err != nil {
+		log.Fatalf("Configuration error: %v", err)
+	}
+	defer func() {
+		if err := h.Close(); err != nil {
+			log.Printf("Error closing handler: %v", err)
+		}
+	}()
+
 	// Use PORT environment variable, or default to 8080.
 	port := "8080"
 	if envPort := os.Getenv("PORT"); envPort != "" {
