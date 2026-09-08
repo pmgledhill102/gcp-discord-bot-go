@@ -134,6 +134,71 @@ To ensure the execution time is kept to a minimum the code just does 3 things:
   servers. This indicates that the request has been received, and let's Discord that the Bot will
   send a further message in the future with the actual message to display to the user.
 
+## Using it as a library
+
+```sh
+go get github.com/pmgledhill102/gcp-discord-bot-go
+```
+
+The package exports an `http.Handler`, so it drops into any router or middleware stack:
+
+```go
+package main
+
+import (
+    "context"
+    "log"
+    "net/http"
+
+    discordbot "github.com/pmgledhill102/gcp-discord-bot-go"
+)
+
+func main() {
+    ctx := context.Background()
+
+    h, err := discordbot.New(ctx, discordbot.Config{
+        PublicKey: "0123…", // hex, from the Discord developer portal
+        ProjectID: "my-project",
+        TopicName: "discord-ops",
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer h.Close()
+
+    http.Handle("/interactions", h)
+    log.Fatal(http.ListenAndServe(":8080", nil))
+}
+```
+
+Whatever path you mount it on is the interactions endpoint URL to register with Discord.
+
+`discordbot.ConfigFromEnv()` reads the same three variables the deployable uses —
+`PUBLIC_SIG_KEY`, `PUBSUB_PROJECT_ID`, `PUBSUB_TOPIC_NAME`, also exported as constants — and
+names every one that is missing rather than only the first.
+
+The caller's credentials need `roles/pubsub.publisher` on the topic. The public key verifies
+signatures rather than creating them, so it is not a secret.
+
+### What the handler promises
+
+| Condition | Response |
+| --------- | -------- |
+| Invalid or missing signature | `401` — [required by Discord](https://docs.discord.com/developers/interactions/overview), which sends invalid signatures as a routine check |
+| Malformed body | `400` |
+| Interaction type other than `PING` or an application command | `400` |
+| Pub/Sub publish failure | `500` |
+| `PING` | `200`, `Pong` |
+| Application command | `200`, deferred acknowledgement, body published verbatim to the topic |
+
+Two properties the endpoint depends on, both covered by tests:
+
+- __Importing the package has no side effects.__ It reads no environment and opens no
+  connections until you call `New`. Configuration problems are returned as errors.
+- __Nothing on the request path calls `log.Fatalf`, `os.Exit` or `panic`.__ The endpoint is
+  necessarily reachable without authentication, because Discord cannot present a Google
+  identity, so exiting on bad input would hand anyone a way to kill the process.
+
 ## Deploying to Cloud Run
 
 Cloud Run is the better home for this bot. It is the same infrastructure that runs Cloud
@@ -459,9 +524,11 @@ table above; at and beyond it:
 - __PATCH__ — bug fixes, security and dependency bumps with no observable change in behaviour,
   base image updates, build changes.
 
-The test for MAJOR is deliberately about the *deployment*, not about the Go API: this artefact
-is consumed as a container, so "breaking" means the container's contract with its environment,
-not the package's contract with a compiler.
+__Two artefacts, one version.__ This repo publishes a container image *and* a Go module, and
+the tag covers both, so a change that breaks either one is breaking. For the image that means
+the container's contract with its environment — required variables, endpoint path, port, user.
+For the module it means the exported API and the import path. A release that changes nothing
+for one of them still carries the other's number.
 
 ## More Information
 

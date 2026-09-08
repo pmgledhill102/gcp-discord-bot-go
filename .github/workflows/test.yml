@@ -80,20 +80,23 @@ jobs:
           echo "Publishing message..."
           gcloud pubsub topics publish test-topic --message "Hello Emulator!" --project=test-project-id
 
-      # PUBLIC_SIG_KEY has to be a hex-encoded 32 byte Ed25519 public key, not
-      # an arbitrary string. It was "key" until this repo had test files: with
-      # none, `go test` never built a binary that ran the package's init(), so
-      # nothing validated it. Now init() decodes the key at startup -- which is
-      # the point, since it is what stops a mistyped key from crashing on the
-      # first interaction instead of failing to deploy.
+      # No PUBLIC_SIG_KEY or PUBSUB_TOPIC_NAME here any more. The package no
+      # longer configures itself at import time, so the unit tests construct a
+      # handler directly and generate their own keypair; the tests that cover
+      # ConfigFromEnv set the variables themselves with t.Setenv.
       #
-      # A throwaway value. It verifies no real signature, and every test that
-      # needs one generates its own keypair and swaps it in.
+      # PUBSUB_EMULATOR_HOST and PUBSUB_PROJECT_ID come from the job-level env
+      # above and are used by one test, TestPublishesToTopic, which exercises
+      # the real Pub/Sub publisher and creates its own topic. It skips itself
+      # when PUBSUB_EMULATOR_HOST is unset, so `go test ./...` still passes on a
+      # laptop with nothing running.
+      #
+      # -v so the log distinguishes a test that ran from one that skipped.
+      # Without it `go test` prints nothing for a skip and the package still
+      # reports "ok", which makes a silently disabled integration test
+      # indistinguishable from a passing one.
       - name: Run Application Tests
-        env:
-          PUBLIC_SIG_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-          PUBSUB_TOPIC_NAME: test-topic
-        run: go test ./...
+        run: go test -v ./...
 
       - name: Emulator logs
         if: always()
