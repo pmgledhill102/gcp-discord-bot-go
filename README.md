@@ -183,7 +183,7 @@ directly, so there is nothing to build:
 
 ```sh
 gcloud run deploy discord-bot \
-  --image ghcr.io/pmgledhill102/gcp-discord-bot-go:1.0.0 \
+  --image ghcr.io/pmgledhill102/gcp-discord-bot-go:0.9.0 \
   --region europe-west2 \
   --allow-unauthenticated \
   --execution-environment gen1 \
@@ -392,9 +392,10 @@ convention:
 
 | Git tag | Image |
 | ------- | ----- |
-| `v1.0.0` | `ghcr.io/pmgledhill102/gcp-discord-bot-go:1.0.0` |
+| `v0.9.0` | `ghcr.io/pmgledhill102/gcp-discord-bot-go:0.9.0` |
 
-__There is deliberately no `latest`__, and no floating `1` or `1.2` either. A tag that moves
+__There is deliberately no `latest`__, and no floating major or major-minor tag either — no
+`0`, no `0.9`. A tag that moves
 lets a consumer's image reference stay unchanged while the code underneath it changes, which
 is the exact failure this repo publishes an image to avoid: a deployed revision whose
 identifier tells you nothing about what is in it. Name a version; let Dependabot propose the
@@ -403,18 +404,49 @@ next one.
 ### Cutting a release
 
 ```sh
-git tag -a v1.0.0 -m "v1.0.0"
-git push origin v1.0.0
+git tag -a v0.9.0 -m "v0.9.0"
+git push origin v0.9.0
 ```
 
 Tag a commit on `main` that has passed CI. The workflow needs no secrets — it authenticates
 to GHCR as `GITHUB_TOKEN` with `packages: write`.
 
+### While this is below 1.0.0
+
+The first release is `v0.9.0` rather than `v1.0.0`, and that is a statement about review
+rather than about polish. Below 1.0.0 the convention is that every position shifts up — the
+MINOR position becomes the breaking one, and PATCH behaves as a minor — because
+[semver §4](https://semver.org/#spec-item-4) makes no stability promise there at all.
+
+The consumer's auto-merge gate implements exactly that shift, so the choice has teeth:
+
+| Bump | What happens downstream |
+| ---- | ----------------------- |
+| `0.9.0` → `0.9.1` | Auto-merges and deploys |
+| `0.9.0` → `0.10.0` | Held for a human |
+| `0.9.0` → `1.0.0` | Held for a human |
+
+So while the version stays below 1.0.0, anything beyond a genuine patch gets looked at before
+it reaches production. That is the point of starting here: the container's contract with its
+environment is already stable and in production, but the repo has only just started publishing
+an artefact, and the release apparatus itself deserves a few cycles of scrutiny before it is
+trusted to land changes unattended.
+
+Worth knowing that this protection is not automatic. `dependabot/fetch-metadata` compares
+version positions literally with no 0.x case, so it reports `0.9.0` → `0.10.0` as a plain
+minor; the guard that catches it is a deliberate extra step in the consumer's workflow.
+
+__Cut `v1.0.0`__ once a release has been through the full path unattended — tag, image,
+Dependabot pull request, auto-merge, deploy — and nothing in the next section is still
+expected to move. From that point the table above stops applying and the ordinary rules take
+over: patch and minor land themselves, majors wait for a human.
+
 ### What the version numbers promise
 
 Semantic versioning here is load-bearing rather than decorative, because at least one consumer
-auto-merges patch and minor Dependabot bumps and holds majors for a human. A breaking change
-released as a minor does not get reviewed — it merges itself and deploys. So:
+auto-merges Dependabot bumps and holds the rest for a human. A breaking change released a
+position too low does not get reviewed — it merges itself and deploys. Below 1.0.0 read the
+table above; at and beyond it:
 
 - __MAJOR__ — anything that makes an existing deployment stop working when the image tag is
   swapped and nothing else changes. A new required environment variable, or a rename of one;

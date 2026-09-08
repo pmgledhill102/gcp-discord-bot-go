@@ -39,10 +39,14 @@ jobs:
           # else, so a repo rename to mixed case would need a literal instead.
           images: ghcr.io/${{ github.repository }}
           # The exact version and nothing else. `latest` -- and the floating
-          # `v1` and `v1.2` tags metadata-action can also emit -- would each let
-          # the consumer's image reference stay unchanged while the code
+          # major / major-minor tags metadata-action can also emit -- would each
+          # let the consumer's image reference stay unchanged while the code
           # underneath moves, which is precisely what this workflow exists to
           # stop. The consumer names a version; Dependabot proposes the bump.
+          #
+          # {{version}} also does the right thing below 1.0.0, where the
+          # major-minor form would be actively dangerous: it would pin `0.9`
+          # while the breaking position moved underneath it.
           tags: |
             type=semver,pattern={{version}}
           flavor: |
