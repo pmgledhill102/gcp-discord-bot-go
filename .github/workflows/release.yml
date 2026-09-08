@@ -110,13 +110,31 @@ jobs:
         if: always()
         run: docker rm -f smoke-test || true
 
-      # One-time manual step after the first successful run: GHCR packages are
-      # created private regardless of the repository's visibility, and the
-      # org.opencontainers.image.source label in the Dockerfile links the
-      # package to this repo but does not make it public. Flip it once at
+      # The published package is public, and its tags are listable without
+      # authenticating. That is the property #45 needs: a consumer's Dependabot
+      # enumerates tags anonymously, and against a private package it would
+      # need a registry credential configured at the other end.
+      #
+      # Verified rather than assumed, and re-checkable in one command. `env -i`
+      # matters -- it stops a local ~/.netrc, Docker config or gh credential
+      # from making a private package look readable:
+      #
+      #   TOK=$(env -i curl -sS "https://ghcr.io/token\
+      #   ?scope=repository:pmgledhill102/gcp-discord-bot-go:pull&service=ghcr.io" \
+      #     | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+      #   env -i curl -sS -w "\nHTTP=%{http_code}\n" -H "Authorization: Bearer $TOK" \
+      #     https://ghcr.io/v2/pmgledhill102/gcp-discord-bot-go/tags/list
+      #
+      # Expect HTTP 200 and a tags array. A 403 DENIED means the package went
+      # private, and the fix is to set it back to public at
       # https://github.com/users/pmgledhill102/packages/container/gcp-discord-bot-go/settings
-      # -- until then a consumer's Dependabot cannot enumerate tags without a
-      # registry credential, which is the complexity being avoided.
+      #
+      # Worth knowing that GitHub documents the opposite default -- a package
+      # is created private and inherits a linked repository's access
+      # permissions but not its visibility. This package came out public
+      # anyway. The mechanism is deliberately not asserted here, because the
+      # observation and the documentation disagree and only one of them is
+      # checkable from this repo.
       - name: Build and push
         uses: docker/build-push-action@v7
         with:
