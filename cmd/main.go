@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/GoogleCloudPlatform/functions-framework-go/funcframework"
+
 	discordbot "github.com/pmgledhill102/gcp-discord-bot-go"
 )
 

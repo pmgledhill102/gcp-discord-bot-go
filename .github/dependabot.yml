@@ -70,6 +70,12 @@ updates:
         update-types: [major]
     commit-message:
       prefix: "deps"
+      include: "scope"
+    # Both labels already exist in this repo. Dependabot does not create labels
+    # it is told to use, and naming an absent one risks it applying none.
+    labels:
+      - "dependencies"
+      - "go"
     assignees:
       - "pmgledhill102"
 

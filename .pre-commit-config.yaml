@@ -24,6 +24,19 @@ repos:
     hooks:
       - id: actionlint
 
+  # All three hooks come from the one golangci-lint binary, so the hook and CI
+  # can never run different versions. config-verify is not redundant with run:
+  # `run` tolerates a config that `config verify` rejects, and CI verifies
+  # first -- so without this hook a config can pass locally and fail CI.
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v2.13.2
+    hooks:
+      - id: golangci-lint-config-verify
+      - id: golangci-lint
+      # Runs the `formatters:` block (gofmt/goimports). Replaces any separate
+      # formatting hook -- do not add tekwizely/pre-commit-golang alongside it.
+      - id: golangci-lint-fmt
+
   - repo: https://github.com/semgrep/semgrep
     rev: v1.176.0
     hooks:

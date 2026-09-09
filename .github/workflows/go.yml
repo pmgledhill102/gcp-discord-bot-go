@@ -1,0 +1,40 @@
+name: Go
+
+# Path-filtered: neither job tells you anything when only docs or workflows
+# change, and the emulator suite in test.yml already covers build and test.
+on:
+  push:
+    paths: ['**/*.go', 'go.mod', 'go.sum', '.golangci.yml']
+  pull_request:
+    paths: ['**/*.go', 'go.mod', 'go.sum', '.golangci.yml']
+
+jobs:
+  lint:
+    name: Go Lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+
+  govulncheck:
+    name: Govulncheck
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      # Reachability-based: it fails only when a vulnerability is actually
+      # reachable from this code, which is the distinction Dependabot alerts
+      # cannot make. A vulnerable module nobody calls reports but does not fail.
+      - name: Run govulncheck
+        run: govulncheck ./...

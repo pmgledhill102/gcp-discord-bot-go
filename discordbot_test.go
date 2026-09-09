@@ -341,7 +341,7 @@ func TestPublishesToTopic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("connecting to the emulator: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// The name carries a nanosecond timestamp, so this cannot collide with a
 	// previous run and an AlreadyExists error would be a real failure.
@@ -349,13 +349,13 @@ func TestPublishesToTopic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("creating topic: %v", err)
 	}
-	defer topic.Delete(ctx)
+	defer func() { _ = topic.Delete(ctx) }()
 
 	sub, err := client.CreateSubscription(ctx, topicName+"-sub", pubsub.SubscriptionConfig{Topic: topic})
 	if err != nil {
 		t.Fatalf("creating subscription: %v", err)
 	}
-	defer sub.Delete(ctx)
+	defer func() { _ = sub.Delete(ctx) }()
 
 	pub, priv, err := ed25519.GenerateKey(nil)
 	if err != nil {
@@ -372,7 +372,7 @@ func TestPublishesToTopic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() = %v", err)
 	}
-	defer h.Close()
+	defer func() { _ = h.Close() }()
 
 	body := `{"type":2,"data":{"id":"1","name":"deploy"}}`
 
