@@ -1,0 +1,51 @@
+# golangci-lint v2 schema. The v1 layout (top-level linters-settings, gosimple
+# as its own linter) is rejected outright by v2.
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - ineffassign
+    - revive
+    - misspell
+    - gosec
+  settings:
+    revive:
+      rules:
+        - name: exported
+          severity: warning
+
+  # Scoped exclusion, not a blanket one: staticcheck's SA1019 fires because
+  # cloud.google.com/go/pubsub v1 is deprecated in favour of /v2. That is a real
+  # finding and is tracked in #59 -- excluded rather than fixed here because
+  # migrating the Pub/Sub client is a change of its own, and a tooling commit
+  # that also rewrote the publisher would be reviewable as neither.
+  #
+  # Narrowed to the one rule and the two files that import it, so an unrelated
+  # SA1019 anywhere else still fails the build. Removing this block is an
+  # acceptance criterion of #59.
+  exclusions:
+    rules:
+      - linters:
+          - staticcheck
+        text: "SA1019: cloud.google.com/go/pubsub is deprecated"
+        path: "discordbot(_test)?\\.go$"
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/pmgledhill102/gcp-discord-bot-go
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+run:
+  timeout: 5m
