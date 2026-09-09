@@ -28,9 +28,21 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # `stable`, deliberately NOT `go-version-file: go.mod` like the lint job
+      # above. govulncheck scans the standard library of whatever toolchain it
+      # runs under, and go.mod's `go 1.25.0` is a minimum-compatibility floor
+      # rather than a statement of what this service is built with -- the
+      # Dockerfile uses golang:1.27-alpine. Scanning the floor reports every
+      # stdlib fix released since it, which on a first run here was 31 reachable
+      # vulnerabilities in a toolchain nothing ships. Any repo whose floor is
+      # more than a patch release old fails the same way.
+      #
+      # Scanning `stable` answers the question that matters: is the binary we
+      # actually build vulnerable? Compatibility with the floor is the lint and
+      # test jobs' business, and they still use go.mod.
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: go.mod
+          go-version: stable
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
       # Reachability-based: it fails only when a vulnerability is actually
