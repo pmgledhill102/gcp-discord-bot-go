@@ -40,7 +40,6 @@ import (
 	"strings"
 
 	"cloud.google.com/go/pubsub"
-	"github.com/bwmarrin/discordgo"
 )
 
 // Environment variables read by [ConfigFromEnv].
@@ -191,7 +190,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// that purposefully send invalid signatures to confirm it does, removing
 	// the registered interactions URL if they are not rejected. This is a
 	// conformance requirement, not only a robustness one.
-	if !discordgo.VerifyInteraction(r, h.key) {
+	if !verifyInteraction(r, h.key) {
 		http.Error(w, "invalid request signature", http.StatusUnauthorized)
 		return
 	}
@@ -204,26 +203,26 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var interaction discordgo.Interaction
-	if err := interaction.UnmarshalJSON(body); err != nil {
+	var in interaction
+	if err := json.Unmarshal(body, &in); err != nil {
 		log.Printf("Unable to parse interaction: %v", err)
 		http.Error(w, "malformed interaction payload", http.StatusBadRequest)
 		return
 	}
 
-	switch interaction.Type {
-	case discordgo.InteractionPing:
+	switch in.Type {
+	case interactionPing:
 		// Discord's endpoint validation handshake. No Pub/Sub round trip.
-		respond(w, discordgo.InteractionResponsePong)
+		respond(w, responsePong)
 		return
 
-	case discordgo.InteractionApplicationCommand:
+	case interactionApplicationCommand:
 		// Handled below.
 
 	default:
 		// Buttons, select menus, modal submissions and autocomplete all arrive
 		// here correctly signed. Refusing them is fine; exiting is not.
-		log.Printf("Unhandled interaction type %d", interaction.Type)
+		log.Printf("Unhandled interaction type %d", in.Type)
 		http.Error(w, "unhandled interaction type", http.StatusBadRequest)
 		return
 	}
@@ -238,12 +237,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Acknowledge within Discord's 3 second budget. Whatever consumes the topic
 	// sends the real message afterwards, via a webhook.
-	respond(w, discordgo.InteractionResponseDeferredChannelMessageWithSource)
+	respond(w, responseDeferredChannelMessageWithSource)
 }
 
 // respond writes a bare interaction response of the given type.
-func respond(w http.ResponseWriter, resType discordgo.InteractionResponseType) {
-	body, err := json.Marshal(discordgo.InteractionResponse{Type: resType})
+func respond(w http.ResponseWriter, resType interactionResponseType) {
+	body, err := json.Marshal(interactionResponse{Type: resType})
 	if err != nil {
 		log.Printf("Error marshalling response: %v", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
