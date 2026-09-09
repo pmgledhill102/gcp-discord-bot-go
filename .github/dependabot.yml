@@ -1,5 +1,23 @@
 version: 2
-updates:
+
+# `cooldown` is load-bearing rather than a lint nit, because this repo runs the
+# Dependabot auto-merge workflow (#44): without it a freshly published malicious
+# or broken version can land on the default branch with nobody looking. Seven
+# days is the estate default.
+#
+# Only `default-days` is used. Per-severity keys (`semver-patch-days` and
+# friends) are accepted by `gomod` but REJECTED by `github-actions`, and a
+# rejected key invalidates the whole file -- silently stopping every update
+# stream in the repo, not just that setting.
+#
+# It does not apply everywhere. The docker ecosystem publishes no date, so
+# docker pull requests carry "Cooldown could not be applied" and merge with no
+# delay; the required status checks are the only gate there.
+#
+# Groups pair deliberately with the auto-merge workflow: `update-type` for a
+# grouped pull request is the LARGEST jump in the group, so a group containing a
+# major is treated as a major and left for a human.
+#
 # Dependabot pull requests are authored by app/dependabot, so they match none of
 # the GitHub mobile app's filters -- not "Created by me", not "Review
 # requested". Assigning them puts them in "Assigned to me", a near-default view
@@ -12,11 +30,25 @@ updates:
 # This does not gate auto-merge. Assignment is metadata, so patch and minor
 # bumps still land themselves and disappear; what stays visible is whatever did
 # NOT merge, which is the case worth seeing (paul-context#160).
+
+updates:
   # Enable updates for GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "daily"
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+        update-types: [minor, patch]
+      actions-major:
+        patterns: ["*"]
+        update-types: [major]
+    commit-message:
+      prefix: "ci"
     assignees:
       - "pmgledhill102"
 
@@ -25,6 +57,19 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+      day: monday
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      gomod:
+        patterns: ["*"]
+        update-types: [minor, patch]
+      gomod-major:
+        patterns: ["*"]
+        update-types: [major]
+    commit-message:
+      prefix: "deps"
     assignees:
       - "pmgledhill102"
 
@@ -32,9 +77,25 @@ updates:
   # version tag Dependabot can bump; the distroless runtime is not -- its Debian
   # release is part of the repository name rather than the tag, so a move to
   # static-debian13 stays a deliberate edit.
+  #
+  # Cooldown is declared for consistency and does nothing here -- see the note
+  # at the top of this file.
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
       interval: "weekly"
+      day: monday
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      docker:
+        patterns: ["*"]
+        update-types: [minor, patch]
+      docker-major:
+        patterns: ["*"]
+        update-types: [major]
+    commit-message:
+      prefix: "docker"
     assignees:
       - "pmgledhill102"
