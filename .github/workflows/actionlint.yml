@@ -1,0 +1,24 @@
+name: Actionlint
+
+on:
+  push:
+    paths: ['.github/workflows/**']
+  pull_request:
+    paths: ['.github/workflows/**']
+
+jobs:
+  actionlint:
+    name: Actionlint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # rhysd/actionlint publishes no GitHub Action to pin, so the official
+      # download script is used rather than `rhysd/actionlint@main` -- a mutable
+      # branch reference, which the semgrep gate in ci.yml treats as a blocking
+      # finding.
+      - name: Download actionlint
+        run: bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+      - name: Run actionlint
+        run: ./actionlint -color

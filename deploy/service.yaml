@@ -56,6 +56,16 @@ spec:
         # it. maxScale is a blast-radius cap, not a capacity plan.
         autoscaling.knative.dev/minScale: '0'
         autoscaling.knative.dev/maxScale: '2'
+    # The rule below wants a securityContext with runAsNonRoot on a Kubernetes
+    # pod spec. This is a Cloud Run service, and the control it asks for is
+    # already enforced one layer down: the Dockerfile declares
+    # `USER 65532:65532`, so the container cannot run as root whatever this file
+    # says. Adding the field is not a free extra belt either -- Cloud Run
+    # accepts only a subset of the Knative schema, and `gcloud run services
+    # replace` rejects what it does not recognise, so a speculative
+    # securityContext risks breaking the deploy it is meant to harden.
+    #
+    # nosemgrep: yaml.kubernetes.security.run-as-non-root.run-as-non-root
     spec:
       # Discord has already given up at 3 seconds and retries nothing, so a
       # long timeout only keeps doomed instances alive. This covers the

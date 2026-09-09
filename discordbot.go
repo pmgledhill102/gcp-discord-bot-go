@@ -252,6 +252,14 @@ func respond(w http.ResponseWriter, resType discordgo.InteractionResponseType) {
 
 	w.Header().Add("Content-Type", "application/json")
 
+	// The rule below guards against XSS from writing untrusted input into an
+	// HTML response. Neither half applies: `body` is the output of json.Marshal
+	// on a struct whose only field is an integer constant chosen by this
+	// function, no request data reaches it, and the response is
+	// application/json rather than HTML. html/template, which the rule
+	// recommends, would produce an invalid interaction response.
+	//
+	// nosemgrep: go.lang.security.audit.xss.no-direct-write-to-responsewriter.no-direct-write-to-responsewriter
 	if _, err := w.Write(body); err != nil {
 		// The client is already gone; there is nothing left to send it.
 		log.Printf("Error writing response: %v", err)
