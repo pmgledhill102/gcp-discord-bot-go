@@ -5,7 +5,6 @@ go 1.25.0
 require (
 	cloud.google.com/go/pubsub v1.51.1
 	github.com/GoogleCloudPlatform/functions-framework-go v1.9.2
-	github.com/bwmarrin/discordgo v0.29.0
 )
 
 require (
@@ -26,7 +25,6 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.17 // indirect
 	github.com/googleapis/gax-go/v2 v2.23.0 // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect

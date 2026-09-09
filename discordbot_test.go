@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"cloud.google.com/go/pubsub"
-	"github.com/bwmarrin/discordgo"
 )
 
 // The request-path tests are regression guards as much as assertions. The bug
@@ -135,11 +134,13 @@ func TestMalformedBodyReturnsBadRequest(t *testing.T) {
 // not application commands. Before #49, adding one button turned every click
 // into a container kill.
 //
-// Each payload carries a populated `data` object deliberately. discordgo's
-// Interaction.UnmarshalJSON unmarshals Data for these types, so `{"type":3}`
-// alone fails to parse and returns 400 from the malformed-body branch instead
-// -- the right status by the wrong route, leaving the test asserting nothing.
-// The body assertion exists to keep the two branches distinguishable.
+// These payloads carried a populated `data` object until #56, purely because
+// discordgo's decoder unmarshalled Data per type and so rejected `{"type":3}`
+// outright -- the test then passed from the malformed-body branch and guarded
+// nothing. This package decodes only the discriminator, so the bare form now
+// reaches the branch under test. The body assertion stays: two branches still
+// return 400, and a test that cannot tell them apart is the bug that was here
+// before.
 func TestUnhandledInteractionTypeReturnsBadRequest(t *testing.T) {
 	h, fake, priv := newTestHandler(t)
 
@@ -147,8 +148,8 @@ func TestUnhandledInteractionTypeReturnsBadRequest(t *testing.T) {
 		name string
 		body string
 	}{
-		{"message component", `{"type":3,"data":{"custom_id":"approve","component_type":2}}`},
-		{"modal submit", `{"type":5,"data":{"custom_id":"feedback","components":[]}}`},
+		{"message component", `{"type":3}`},
+		{"modal submit", `{"type":5}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
@@ -185,13 +186,13 @@ func TestPingReturnsPong(t *testing.T) {
 		t.Errorf("Content-Type = %q, want %q", got, "application/json")
 	}
 
-	var res discordgo.InteractionResponse
+	var res interactionResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
 		t.Fatalf("unmarshalling response %q: %v", rec.Body.String(), err)
 	}
 
-	if res.Type != discordgo.InteractionResponsePong {
-		t.Errorf("response type = %d, want %d", res.Type, discordgo.InteractionResponsePong)
+	if res.Type != responsePong {
+		t.Errorf("response type = %d, want %d", res.Type, responsePong)
 	}
 
 	if len(fake.published) != 0 {
@@ -222,14 +223,14 @@ func TestApplicationCommandPublishesAndDefers(t *testing.T) {
 		t.Errorf("published %q, want the request body verbatim %q", got, body)
 	}
 
-	var res discordgo.InteractionResponse
+	var res interactionResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
 		t.Fatalf("unmarshalling response %q: %v", rec.Body.String(), err)
 	}
 
-	if res.Type != discordgo.InteractionResponseDeferredChannelMessageWithSource {
+	if res.Type != responseDeferredChannelMessageWithSource {
 		t.Errorf("response type = %d, want %d",
-			res.Type, discordgo.InteractionResponseDeferredChannelMessageWithSource)
+			res.Type, responseDeferredChannelMessageWithSource)
 	}
 }
 
