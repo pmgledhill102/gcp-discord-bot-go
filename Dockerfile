@@ -12,7 +12,7 @@
 # Pinned to the build platform, with the target reached through Go's own
 # GOOS/GOARCH below rather than through QEMU. CGO is off, so a toolchain running
 # natively for the target buys nothing and costs an emulated compile.
-FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414 AS builder
 
 WORKDIR /app
 
@@ -42,7 +42,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 # Debian 12 matches the image this service was already being built from. The
 # tag is sticky: Dependabot bumps versions inside a tag, and `debian12` is part
 # of the repository name, so moving to debian13 is a deliberate edit here.
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
 
 # Links the GHCR package to this repository. Without it the package is orphaned:
 # it does not inherit the repo's access permissions, and the "Source" link on
