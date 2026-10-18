@@ -11,7 +11,10 @@ repos:
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.1
     hooks:
-      - id: gitleaks
+      # The v8.30.1 manifest lacks pass_filenames: false, and `gitleaks git`
+      # takes no file arguments, so pre-commit's appended filenames fail every run.
+      - id: gitleaks-system
+        pass_filenames: false
 
   - repo: https://github.com/streetsidesoftware/cspell-cli
     rev: v10.2.0
@@ -22,7 +25,7 @@ repos:
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.12
     hooks:
-      - id: actionlint
+      - id: actionlint-system
 
   # All three hooks come from the one golangci-lint binary, so the hook and CI
   # can never run different versions. config-verify is not redundant with run:
