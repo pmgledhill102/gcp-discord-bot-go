@@ -2,8 +2,6 @@ name: Trufflehog Scan
 
 on:
   pull_request:
-    branches:
-      - main
 
 jobs:
   trufflehog:
