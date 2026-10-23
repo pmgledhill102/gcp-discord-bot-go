@@ -32,7 +32,7 @@ repos:
   # `run` tolerates a config that `config verify` rejects, and CI verifies
   # first -- so without this hook a config can pass locally and fail CI.
   - repo: https://github.com/golangci/golangci-lint
-    rev: v2.13.2
+    rev: v2.15.0
     hooks:
       - id: golangci-lint-config-verify
       - id: golangci-lint
@@ -51,3 +51,10 @@ repos:
         # never sees.
         args: ["--config", "auto", "--error"]
         pass_filenames: false
+
+  # Runs the locally installed hadolint binary (brew install hadolint); the
+  # hadolint-docker variant aborts the whole run when no Docker daemon is up.
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.15.1
+    hooks:
+      - id: hadolint
