@@ -1,0 +1,40 @@
+name: Docker
+
+on:
+  push:
+    paths: ["**/Dockerfile*", "**/docker-compose*.yml", ".hadolint.yaml", ".github/workflows/docker.yml"]
+  pull_request:
+    paths: ["**/Dockerfile*", "**/docker-compose*.yml", ".hadolint.yaml", ".github/workflows/docker.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  hadolint:
+    name: Hadolint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
+        with:
+          dockerfile: Dockerfile
+
+  trivy:
+    name: Trivy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Scan Dockerfile for misconfigurations
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: "fs"
+          scanners: "misconfig"
+      - name: Build image
+        run: docker build -t gcp-discord-bot-go:scan .
+      - name: Scan image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: gcp-discord-bot-go:scan
+          severity: "HIGH,CRITICAL"
+          ignore-unfixed: true
+          exit-code: "1"
