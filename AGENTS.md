@@ -67,9 +67,11 @@ the registered interactions URL. It is a conformance requirement, not just
 robustness.
 
 **Two artefacts, one version.** The repo publishes a container image *and* a Go
-module, and the tag covers both, so breaking either is breaking. Below 1.0.0 the
-MINOR position is the breaking one; see "Releases and versioning" in the README
-before choosing a version.
+module, and the tag covers both, so breaking either is breaking: a MAJOR bump.
+A new optional setting is a MINOR, a fix or dependency bump a PATCH. Consumers
+auto-merge minor and patch bumps, so a breaking change released a position too
+low deploys itself; see "Releases and versioning" in the README before choosing
+a version.
 
 **Tests assert response bodies, not only status codes**, wherever two branches
 can produce the same status. A `400` from the malformed-body branch and a `400`
