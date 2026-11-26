@@ -47,6 +47,9 @@ const (
 	EnvPublicKey = "PUBLIC_SIG_KEY"
 	EnvProjectID = "PUBSUB_PROJECT_ID"
 	EnvTopicName = "PUBSUB_TOPIC_NAME"
+
+	// EnvEphemeralCommands is optional; see Config.EphemeralCommands.
+	EnvEphemeralCommands = "EPHEMERAL_COMMANDS"
 )
 
 // Config is the configuration for a [Handler].
@@ -62,6 +65,60 @@ type Config struct {
 	// TopicName is the Pub/Sub topic that interactions are published to. The
 	// caller's credentials need roles/pubsub.publisher on it.
 	TopicName string
+
+	// EphemeralCommands optionally lists the commands whose deferred
+	// acknowledgement is ephemeral, so only the invoking user sees the reply
+	// and anything the consumer later writes to it. It is a comma-separated
+	// list; each entry is a command name ("deploy", matching /deploy with any
+	// subcommand or none) or a command and subcommand separated by a space
+	// ("dfc stats"). Subcommand groups are not supported, so an entry is at
+	// most two words. Empty means every acknowledgement is public, as before.
+	//
+	// It is kept as the raw string rather than a slice so that Config stays
+	// comparable; [New] parses and validates it.
+	EphemeralCommands string
+}
+
+// commandSet is a parsed EphemeralCommands value.
+type commandSet map[string]struct{}
+
+// parseEphemeralCommands parses and validates an EphemeralCommands value. An
+// empty value is an empty set; an empty entry, or one of more than two words,
+// is an error, so a typo fails at construction rather than silently making a
+// private reply public.
+func parseEphemeralCommands(value string) (commandSet, error) {
+	set := commandSet{}
+
+	if strings.TrimSpace(value) == "" {
+		return set, nil
+	}
+
+	for i, entry := range strings.Split(value, ",") {
+		words := strings.Fields(entry)
+
+		switch {
+		case len(words) == 0:
+			return nil, fmt.Errorf("%s entry %d is empty", EnvEphemeralCommands, i+1)
+		case len(words) > 2:
+			return nil, fmt.Errorf("%s entry %q has %d words; want a command, optionally followed by one subcommand",
+				EnvEphemeralCommands, strings.TrimSpace(entry), len(words))
+		}
+
+		set[strings.Join(words, " ")] = struct{}{}
+	}
+
+	return set, nil
+}
+
+// matches reports whether the interaction names a listed command.
+func (s commandSet) matches(c commandInteraction) bool {
+	for _, key := range c.keys() {
+		if _, ok := s[key]; ok {
+			return true
+		}
+	}
+
+	return false
 }
 
 // publicKey decodes and validates Config.PublicKey.
@@ -90,6 +147,9 @@ func ConfigFromEnv() (Config, error) {
 		PublicKey: os.Getenv(EnvPublicKey),
 		ProjectID: os.Getenv(EnvProjectID),
 		TopicName: os.Getenv(EnvTopicName),
+
+		// Optional, so deliberately absent from the required check below.
+		EphemeralCommands: os.Getenv(EnvEphemeralCommands),
 	}
 
 	var missing []string
@@ -137,8 +197,9 @@ func (t *topicPublisher) Close() error {
 
 // Handler verifies and forwards Discord interactions. Create one with [New].
 type Handler struct {
-	key ed25519.PublicKey
-	pub publisher
+	key       ed25519.PublicKey
+	pub       publisher
+	ephemeral commandSet
 }
 
 // New validates cfg and connects to Pub/Sub.
@@ -159,14 +220,20 @@ func New(ctx context.Context, cfg Config) (*Handler, error) {
 		return nil, errors.New("TopicName is required")
 	}
 
+	ephemeral, err := parseEphemeralCommands(cfg.EphemeralCommands)
+	if err != nil {
+		return nil, err
+	}
+
 	client, err := pubsub.NewClient(ctx, cfg.ProjectID)
 	if err != nil {
 		return nil, fmt.Errorf("creating Pub/Sub client: %w", err)
 	}
 
 	return &Handler{
-		key: key,
-		pub: &topicPublisher{client: client, topic: client.Topic(cfg.TopicName)},
+		key:       key,
+		pub:       &topicPublisher{client: client, topic: client.Topic(cfg.TopicName)},
+		ephemeral: ephemeral,
 	}, nil
 }
 
@@ -213,7 +280,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch in.Type {
 	case interactionPing:
 		// Discord's endpoint validation handshake. No Pub/Sub round trip.
-		respond(w, responsePong)
+		respond(w, interactionResponse{Type: responsePong})
 		return
 
 	case interactionApplicationCommand:
@@ -236,13 +303,38 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Acknowledge within Discord's 3 second budget. Whatever consumes the topic
-	// sends the real message afterwards, via a webhook.
-	respond(w, responseDeferredChannelMessageWithSource)
+	// sends the real message afterwards, via a webhook. Visibility is decided
+	// here, after the publish, because Discord fixes it at the acknowledgement:
+	// a public deferred reply cannot be made private later.
+	res := interactionResponse{Type: responseDeferredChannelMessageWithSource}
+	if h.isEphemeral(body) {
+		res.Data = &interactionResponseData{Flags: flagEphemeral}
+	}
+
+	respond(w, res)
 }
 
-// respond writes a bare interaction response of the given type.
-func respond(w http.ResponseWriter, resType interactionResponseType) {
-	body, err := json.Marshal(interactionResponse{Type: resType})
+// isEphemeral reports whether an application command's acknowledgement should
+// be ephemeral. With no EphemeralCommands configured it does no work at all. A
+// body that does not decode into the command shape is treated as not listed:
+// this path must never turn a request that would have succeeded into an error.
+func (h *Handler) isEphemeral(body []byte) bool {
+	if len(h.ephemeral) == 0 {
+		return false
+	}
+
+	var cmd commandInteraction
+	if err := json.Unmarshal(body, &cmd); err != nil {
+		log.Printf("Unable to read command name, acknowledging publicly: %v", err)
+		return false
+	}
+
+	return h.ephemeral.matches(cmd)
+}
+
+// respond writes an interaction response.
+func respond(w http.ResponseWriter, res interactionResponse) {
+	body, err := json.Marshal(res)
 	if err != nil {
 		log.Printf("Error marshalling response: %v", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -253,8 +345,9 @@ func respond(w http.ResponseWriter, resType interactionResponseType) {
 
 	// The rule below guards against XSS from writing untrusted input into an
 	// HTML response. Neither half applies: `body` is the output of json.Marshal
-	// on a struct whose only field is an integer constant chosen by this
-	// function, no request data reaches it, and the response is
+	// on a struct holding only integer constants chosen by this package (a
+	// response type and, optionally, the ephemeral flag), no request data
+	// reaches it, and the response is
 	// application/json rather than HTML. html/template, which the rule
 	// recommends, would produce an invalid interaction response.
 	//
