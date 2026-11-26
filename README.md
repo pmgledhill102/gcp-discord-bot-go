@@ -173,9 +173,43 @@ func main() {
 
 Whatever path you mount it on is the interactions endpoint URL to register with Discord.
 
-`discordbot.ConfigFromEnv()` reads the same three variables the deployable uses —
-`PUBLIC_SIG_KEY`, `PUBSUB_PROJECT_ID`, `PUBSUB_TOPIC_NAME`, also exported as constants — and
-names every one that is missing rather than only the first.
+`discordbot.ConfigFromEnv()` reads the same variables the deployable uses, also exported as
+constants, and names every required one that is missing rather than only the first.
+
+| Variable | Required | Meaning |
+| -------- | -------- | ------- |
+| `PUBLIC_SIG_KEY` | Yes | The application's public key from the Discord developer portal, hex encoded |
+| `PUBSUB_PROJECT_ID` | Yes | Google Cloud project that owns the topic |
+| `PUBSUB_TOPIC_NAME` | Yes | Pub/Sub topic interactions are published to |
+| `EPHEMERAL_COMMANDS` | No | Commands whose deferred acknowledgement is ephemeral; see below |
+
+### Ephemeral acknowledgements
+
+By default every application command is acknowledged with a public deferred reply,
+`{"type":5}`. Discord fixes a reply's visibility at that acknowledgement: whatever the
+consumer later writes to `@original` is seen by the whole channel, and cannot be made private
+afterwards. Because this service is the only part of the system that answers Discord inside
+its 3 seconds, a consumer that wants a private reply has to ask for it here.
+
+`EPHEMERAL_COMMANDS` (`Config.EphemeralCommands` in the library) is a comma-separated list of
+commands to acknowledge with `{"type":5,"data":{"flags":64}}` instead. Only the person who ran
+the command sees the reply, and the consumer's edits of `@original` and its follow-ups inherit
+that. Each entry is either:
+
+- `name`, a top-level command, matching `/name` with any subcommand or none; or
+- `name subcommand`, matching only that subcommand, so `dfc stats` does not match
+  `/dfc status`.
+
+```sh
+EPHEMERAL_COMMANDS="dfc stats,dfc-dev stats"
+```
+
+Commands are matched by name rather than by ID, because IDs differ between applications (a
+production and a dev bot, say) and names do not. Subcommand groups (`/a group sub`) are not
+supported, so an entry is at most two words. An empty entry or one of three or more words is
+a configuration error, which `New` returns at startup, so a typo fails the deploy rather than
+silently making a private reply public. Unset or empty, every acknowledgement is public, as it
+always was.
 
 The caller's credentials need `roles/pubsub.publisher` on the topic. The public key verifies
 signatures rather than creating them, so it is not a secret.
@@ -190,6 +224,7 @@ signatures rather than creating them, so it is not a secret.
 | Pub/Sub publish failure | `500` |
 | `PING` | `200`, `Pong` |
 | Application command | `200`, deferred acknowledgement, body published verbatim to the topic |
+| Application command listed in `EPHEMERAL_COMMANDS` | As above, but the acknowledgement is ephemeral |
 
 Two properties the endpoint depends on, both covered by tests:
 

@@ -106,6 +106,12 @@ spec:
             # registered with Discord.
             # - name: FUNCTION_TARGET
             #   value: 'handleDiscordMessage'
+            # Optional. Commands whose deferred acknowledgement is ephemeral, so
+            # only the invoking user sees the reply. Comma-separated; each
+            # entry is a command ("deploy") or a command and subcommand
+            # ("dfc stats"). See "Ephemeral acknowledgements" in the README.
+            # - name: EPHEMERAL_COMMANDS
+            #   value: 'dfc stats,dfc-dev stats'
 
           resources:
             limits:
