@@ -11,4 +11,13 @@
     <PackageReference Include="Google.Cloud.PubSub.V1" Version="3.40.0" />
     <PackageReference Include="NSec.Cryptography" Version="26.4.0" />
   </ItemGroup>
+  <!-- Native AOT only (the JIT image is not trimmed). Google.Apis.Auth reads
+       the metadata server's token response with Newtonsoft.Json by reflection;
+       trimmed, the response types lose the members it reflects over and every
+       token fetch fails with "Server response does not contain a JSON object".
+       Rooting the assemblies keeps them whole. -->
+  <ItemGroup>
+    <TrimmerRootAssembly Include="Google.Apis.Auth" />
+    <TrimmerRootAssembly Include="Google.Apis.Core" />
+  </ItemGroup>
 </Project>
