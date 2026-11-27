@@ -10,6 +10,8 @@
     "bench/services/python/requirements.txt"
   ],
   "words": [
+    "BUILDKIT",
+    "BUILDPLATFORM",
     "Fatalf",
     "Graal",
     "HIGHCPU",

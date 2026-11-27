@@ -3,8 +3,10 @@
 #
 #   PROJECT_ID=my-project bench/build.sh [name...]
 #
-# With no names, builds every service in bench/services.txt, in parallel. Run it
-# from the repository root.
+# With no names, builds every service in bench/services.txt. Builds are
+# submitted asynchronously and polled with one list call: a dozen gcloud
+# processes each polling their own build hit the API's rate limit. Run it from
+# the repository root.
 set -eu
 
 : "${PROJECT_ID:?set PROJECT_ID}"
@@ -17,40 +19,46 @@ STAGING=${STAGING:-gs://$PROJECT_ID-bench-build/source}
 # the image repository and log writing. Without one, Cloud Build runs as the
 # default compute service account.
 BUILDER=${BUILDER:-projects/$PROJECT_ID/serviceAccounts/bench-builder@$PROJECT_ID.iam.gserviceaccount.com}
-LOGS=${LOGS:-${TMPDIR:-/tmp}/bench-build}
-mkdir -p "$LOGS"
-rm -f "$LOGS"/*.failed
 
 registry="$REGION-docker.pkg.dev/$PROJECT_ID/$REPO"
 config="$(pwd)/bench/cloudbuild.yaml"
+ids=$(mktemp)
+trap 'rm -f "$ids"' EXIT
 
-build() {
-	name=$1 context=$2 dockerfile=$3
-	echo "building $name ($context/$dockerfile)"
-	if gcloud builds submit "$context" --project "$PROJECT_ID" --region "$REGION" \
-		--config "$config" --gcs-source-staging-dir "$STAGING" --service-account "$BUILDER" --quiet \
-		--substitutions "_DOCKERFILE=$dockerfile,_IMAGE=$registry/$name:latest" \
-		>"$LOGS/$name.log" 2>&1; then
-		echo "built    $name"
-	else
-		echo "FAILED   $name (see $LOGS/$name.log)"
-		touch "$LOGS/$name.failed"
-	fi
-}
-
-grep -v '^#' bench/services.txt | {
-while read -r name context dockerfile; do
+grep -v '^#' bench/services.txt | while read -r name context dockerfile; do
 	[ -n "$name" ] || continue
 	if [ $# -gt 0 ]; then
 		case " $* " in *" $name "*) ;; *) continue ;; esac
 	fi
-	build "$name" "$context" "$dockerfile" &
+	id=$(gcloud builds submit "$context" --project "$PROJECT_ID" --region "$REGION" \
+		--config "$config" --gcs-source-staging-dir "$STAGING" --service-account "$BUILDER" \
+		--substitutions "_DOCKERFILE=$dockerfile,_IMAGE=$registry/$name:latest" \
+		--async --quiet --format 'value(id)' 2>/dev/null)
+	echo "submitted $name $id"
+	echo "$id $name" >>"$ids"
 done
-# Inside the braces: the jobs belong to this pipeline's subshell.
-wait
-}
 
-# The loop runs in a pipeline subshell, so failures are reported through files.
-if ls "$LOGS"/*.failed >/dev/null 2>&1; then
-	exit 1
-fi
+[ -s "$ids" ] || { echo "nothing to build" >&2; exit 2; }
+
+while :; do
+	sleep 20
+	pending=0 failed=0
+	statuses=$(gcloud builds list --project "$PROJECT_ID" --region "$REGION" \
+		--limit 100 --format 'value(id,status)')
+	while read -r id name; do
+		status=$(echo "$statuses" | awk -v id="$id" '$1 == id { print $2 }')
+		case $status in
+		SUCCESS) ;;
+		QUEUED | WORKING | PENDING | "") pending=$((pending + 1)) ;;
+		*) failed=$((failed + 1)) ;;
+		esac
+	done <"$ids"
+	[ "$pending" -eq 0 ] && break
+done
+
+while read -r id name; do
+	status=$(echo "$statuses" | awk -v id="$id" '$1 == id { print $2 }')
+	echo "$status $name ($id)"
+done <"$ids"
+
+[ "$failed" -eq 0 ]

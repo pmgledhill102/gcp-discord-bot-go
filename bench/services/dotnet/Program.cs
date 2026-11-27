@@ -3,7 +3,6 @@
 // The same project is published two ways: JIT (Dockerfile) and Native AOT
 // (Dockerfile.aot). CreateSlimBuilder is used for both, so AOT is the only
 // difference between the two images.
-using System.Text;
 using System.Text.Json;
 using Google.Cloud.PubSub.V1;
 using Google.Protobuf;
@@ -31,8 +30,8 @@ bool Verified(HttpRequest req, byte[] body)
     byte[] sigBytes;
     try { sigBytes = Convert.FromHexString(sig); }
     catch (FormatException) { return false; }
-    var signed = new byte[Encoding.UTF8.GetByteCount(ts) + body.Length];
-    var n = Encoding.UTF8.GetBytes(ts, signed);
+    var signed = new byte[System.Text.Encoding.UTF8.GetByteCount(ts) + body.Length];
+    var n = System.Text.Encoding.UTF8.GetBytes(ts, signed);
     body.CopyTo(signed, n);
     return SignatureAlgorithm.Ed25519.Verify(key, signed, sigBytes);
 }
