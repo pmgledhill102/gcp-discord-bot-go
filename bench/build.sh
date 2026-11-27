@@ -13,6 +13,10 @@ REPO=${REPO:-bench}
 # gcloud's default staging bucket is in the US multi-region, which an org
 # resource-location policy can refuse. Stage in the build region instead.
 STAGING=${STAGING:-gs://$PROJECT_ID-bench-build/source}
+# A dedicated build identity holding only read on the staging bucket, write on
+# the image repository and log writing. Without one, Cloud Build runs as the
+# default compute service account.
+BUILDER=${BUILDER:-projects/$PROJECT_ID/serviceAccounts/bench-builder@$PROJECT_ID.iam.gserviceaccount.com}
 LOGS=${LOGS:-${TMPDIR:-/tmp}/bench-build}
 mkdir -p "$LOGS"
 rm -f "$LOGS"/*.failed
@@ -24,7 +28,7 @@ build() {
 	name=$1 context=$2 dockerfile=$3
 	echo "building $name ($context/$dockerfile)"
 	if gcloud builds submit "$context" --project "$PROJECT_ID" --region "$REGION" \
-		--config "$config" --gcs-source-staging-dir "$STAGING" --quiet \
+		--config "$config" --gcs-source-staging-dir "$STAGING" --service-account "$BUILDER" --quiet \
 		--substitutions "_DOCKERFILE=$dockerfile,_IMAGE=$registry/$name:latest" \
 		>"$LOGS/$name.log" 2>&1; then
 		echo "built    $name"

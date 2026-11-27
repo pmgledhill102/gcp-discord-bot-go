@@ -3,6 +3,7 @@
 //	client keygen -key FILE              write a test Ed25519 seed, print the public key
 //	client smoke  -key FILE URL...       check each service honours the handler contract
 //	client run    -key FILE -out F URL...  one cold request then warm ones, per service
+//	client report -results F -logs L     join results to Cloud Run request logs, print a table
 //
 // Every request carries an X-Cloud-Trace-Context header, recorded alongside the
 // client-side timings, so that each one can be matched to its Cloud Run request
@@ -44,6 +45,8 @@ func main() {
 		err = smoke(os.Args[2:])
 	case "run":
 		err = run(os.Args[2:])
+	case "report":
+		err = report(os.Args[2:])
 	default:
 		usage()
 	}
@@ -55,7 +58,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: client keygen|smoke|run [flags] [URL...]")
+	fmt.Fprintln(os.Stderr, "usage: client keygen|smoke|run|report [flags] [URL...]")
 	os.Exit(2)
 }
 
