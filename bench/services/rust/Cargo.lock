@@ -132,7 +132,6 @@ name = "bench-rust"
 version = "0.1.0"
 dependencies = [
  "axum",
- "bytes",
  "ed25519-dalek",
  "google-cloud-pubsub",
  "hex",

@@ -5,7 +5,6 @@ edition = "2024"
 
 [dependencies]
 axum = "0.8.9"
-bytes = "1.12.2"
 ed25519-dalek = "3.0.0"
 google-cloud-pubsub = "1.8.0"
 hex = "0.4.3"

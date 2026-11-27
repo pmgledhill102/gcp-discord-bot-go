@@ -92,31 +92,51 @@ and the platform defaults are not on your side — see
 
 ### Optimising Language
 
-Cold starts are more/less of a problem depending on the coding language used. Those languages
-that are compiled down to native images have the shortest start-up times, where-as those that
-are interpreted and/or have large language VMs take the longest. This problem is increased as
-the size of the package also tends to be larger, which will take longer to copy across the
-network into the execution environment.
+Cold starts are more of a problem in some languages than others. Those compiled to a native
+binary start fastest; those that load a large runtime or interpret their code take longest, and
+tend to ship larger images that take longer to pull.
 
-Testing of a dummy function showed the following response times, for both cold and warm
-executions across a number of different languages:
+The figures below are this repository's own handler and faithful ports of it, measured on Cloud
+Run in November 2026. Every service did the full job a real interaction does: verify the Ed25519
+signature, publish to a real Pub/Sub topic and wait for the acknowledgement, then return the
+deferred response. Each was deployed with the settings in [`deploy/service.yaml`](deploy/service.yaml)
+(gen1, startup CPU boost, 1 vCPU, 512 MiB, scale to zero) in europe-west2.
 
-| Language            | Cold Start | Warm Start |
-| ------------------- | ---------- | ---------- |
-| DotNet              | 3,137 ms   | 337 ms     |
-| NodeJS              | 1,912 ms   | 215 ms     |
-| Go                  | 946 ms     | 124 ms     |
-| Python              | 2,060 ms   | 284 ms     |
-| Java (no framework) | 4,222 ms   | 570 ms     |
-| Java (Springboot 2) | 15,000 ms  | 650 ms     |
-| Java (GraalVM)      | 3,164 ms   | 332 ms     |
+| Implementation                      | Cold start (median) | Cold start (range) | Warm  | Image  |
+| ----------------------------------- | ------------------: | -----------------: | ----: | -----: |
+| Rust, REST publish                  |              392 ms |         248–528 ms | 22 ms |  14 MB |
+| Rust, official Pub/Sub client       |              470 ms |         287–922 ms | 40 ms |  14 MB |
+| __Go (this repository)__            |          __609 ms__ |         293–835 ms | 42 ms |   8 MB |
+| .NET 10, Native AOT                 |            1,465 ms |     1,346–1,943 ms | 46 ms |  18 MB |
+| Node.js 26                          |            1,657 ms |     1,480–1,959 ms | 49 ms |  69 MB |
+| Java 25, GraalVM native image       |            2,030 ms |     1,337–2,843 ms | 38 ms |  50 MB |
+| .NET 10                             |            2,968 ms |     2,605–3,344 ms | 56 ms |  57 MB |
+| Java 25, JVM with AOT cache         |            3,241 ms |     2,920–3,979 ms | 46 ms | 132 MB |
+| Java 25, JVM                        |            3,625 ms |     3,294–5,024 ms | 48 ms | 120 MB |
+| Python 3.15                         |            4,933 ms |     4,700–5,368 ms | 47 ms |  76 MB |
+| Java 25, Spring Boot 4              |            6,941 ms |     6,668–7,988 ms | 42 ms | 139 MB |
 
-Note: Java can be compiled into a native image using the GraalVM JDK, and compatible frameworks such
-as Micronaut, Quarkus or SpringBoot 3 Native.
+Times are server-side, from Cloud Run's request log, so they exclude the caller's network path;
+Discord's own round trip comes on top. Five cold requests per implementation, each after at least
+20 minutes idle and each confirmed against the log as the first request a new instance served.
+Method, sources and raw data: [`bench/`](bench/README.md).
 
-The figures above are from Cloud Functions. For an equivalent measurement on Cloud Run, taken
-against this same Discord webhook workload across 19 language and framework combinations, see
-[discord-bot-test-suite](https://github.com/pmgledhill102/discord-bot-test-suite).
+What the numbers say:
+
+- __Go and Rust are the only options with real headroom__ inside Discord's 3 seconds. Rust is a
+  little quicker; at this scale the difference is a hundred or two milliseconds, not a reason to
+  switch.
+- __Native compilation helps the managed runtimes but does not close the gap.__ GraalVM and .NET
+  Native AOT cut their JVM or JIT cold start by roughly half, and still land at 1.5–2 seconds once
+  the Pub/Sub client's own start-up is counted.
+- __Python and Spring Boot miss the deadline on their own__, before Discord's network leg.
+- __Warm, nothing matters.__ Every implementation answers in 20–60 ms, and that is almost all the
+  Pub/Sub round trip.
+
+The table this replaces was a Cloud Functions dummy function measured several years earlier. The
+archived [discord-bot-test-suite](https://github.com/pmgledhill102/discord-bot-test-suite) ran a
+wider Cloud Run comparison, but most of its implementations published to Pub/Sub only against an
+emulator, and after responding, so its cold starts left out the most expensive part of the request.
 
 ### Minimal Execution
 
