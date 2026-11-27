@@ -6,11 +6,13 @@
     "node_modules",
     "go.sum",
     "*.lock",
-    ".git"
+    ".git",
+    "bench/services/python/requirements.txt"
   ],
   "words": [
     "Fatalf",
     "Graal",
+    "HIGHCPU",
     "Micronaut",
     "Optimising",
     "Quarkus",

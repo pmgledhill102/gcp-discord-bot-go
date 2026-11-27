@@ -1,0 +1,16 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
+# Native AOT links with the platform toolchain.
+RUN apt-get update && apt-get install -y --no-install-recommends clang zlib1g-dev && rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+COPY bench.csproj ./
+RUN dotnet restore -r linux-x64 -p:PublishAot=true
+COPY Program.cs ./
+RUN dotnet publish -c Release -r linux-x64 --no-restore -p:PublishAot=true -o /out
+
+# runtime-deps: only the native libraries a self-contained binary needs.
+FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-noble-chiseled
+WORKDIR /app
+COPY --from=build /out/bench ./
+COPY --from=build /out/*.so ./
+USER 65532:65532
+ENTRYPOINT ["/app/bench"]

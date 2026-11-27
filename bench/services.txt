@@ -1,0 +1,12 @@
+# name          build context (from repo root)   Dockerfile (within context)
+go              .                                Dockerfile
+rust            bench/services/rust              Dockerfile
+rust-rest       bench/services/rust-rest         Dockerfile
+node            bench/services/node              Dockerfile
+python          bench/services/python            Dockerfile
+dotnet          bench/services/dotnet            Dockerfile
+dotnet-aot      bench/services/dotnet            Dockerfile.aot
+java            bench/services/java              Dockerfile
+java-aot        bench/services/java              Dockerfile.aot
+java-native     bench/services/java              Dockerfile.native
+java-spring     bench/services/java-spring       Dockerfile
