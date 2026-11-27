@@ -102,36 +102,44 @@ signature, publish to a real Pub/Sub topic and wait for the acknowledgement, the
 deferred response. Each was deployed with the settings in [`deploy/service.yaml`](deploy/service.yaml)
 (gen1, startup CPU boost, 1 vCPU, 512 MiB, scale to zero) in europe-west2.
 
-| Implementation                      | Cold start (median) | Cold start (range) | Warm  | Image  |
-| ----------------------------------- | ------------------: | -----------------: | ----: | -----: |
-| Rust, REST publish                  |              392 ms |         248–528 ms | 22 ms |  14 MB |
-| Rust, official Pub/Sub client       |              470 ms |         287–922 ms | 40 ms |  14 MB |
-| __Go (this repository)__            |          __609 ms__ |         293–835 ms | 42 ms |   8 MB |
-| .NET 10, Native AOT                 |            1,465 ms |     1,346–1,943 ms | 46 ms |  18 MB |
-| Node.js 26                          |            1,657 ms |     1,480–1,959 ms | 49 ms |  69 MB |
-| Java 25, GraalVM native image       |            2,030 ms |     1,337–2,843 ms | 38 ms |  50 MB |
-| .NET 10                             |            2,968 ms |     2,605–3,344 ms | 56 ms |  57 MB |
-| Java 25, JVM with AOT cache         |            3,241 ms |     2,920–3,979 ms | 46 ms | 132 MB |
-| Java 25, JVM                        |            3,625 ms |     3,294–5,024 ms | 48 ms | 120 MB |
-| Python 3.15                         |            4,933 ms |     4,700–5,368 ms | 47 ms |  76 MB |
-| Java 25, Spring Boot 4              |            6,941 ms |     6,668–7,988 ms | 42 ms | 139 MB |
+Discord gives up at 3 seconds, so the slowest cold start matters more than the typical one. The
+table is ordered by it.
+
+| Implementation                      | Cold, worst | Cold, median | Warm, median | Warm, worst | Image  |
+| ----------------------------------- | ----------: | -----------: | -----------: | ----------: | -----: |
+| Rust, REST publish                  |      528 ms |       392 ms |        22 ms |      427 ms |  14 MB |
+| __Go (this repository)__            |  __835 ms__ |       609 ms |        42 ms |      854 ms |   8 MB |
+| Rust, official Pub/Sub client       |      922 ms |       470 ms |        40 ms |      629 ms |  14 MB |
+| .NET 10, Native AOT                 |    1,943 ms |     1,465 ms |        46 ms |      809 ms |  18 MB |
+| Node.js 26                          |    1,959 ms |     1,657 ms |        49 ms |      741 ms |  69 MB |
+| Java 25, GraalVM native image       |    2,843 ms |     2,030 ms |        38 ms |      699 ms |  50 MB |
+| .NET 10                             |    3,344 ms |     2,968 ms |        56 ms |      610 ms |  57 MB |
+| Java 25, JVM with AOT cache         |    3,979 ms |     3,241 ms |        46 ms |      743 ms | 132 MB |
+| Java 25, JVM                        |    5,024 ms |     3,625 ms |        48 ms |      424 ms | 120 MB |
+| Python 3.15                         |    5,368 ms |     4,933 ms |        47 ms |      283 ms |  76 MB |
+| Java 25, Spring Boot 4              |    7,988 ms |     6,941 ms |        42 ms |       89 ms | 139 MB |
 
 Times are server-side, from Cloud Run's request log, so they exclude the caller's network path;
-Discord's own round trip comes on top. Five cold requests per implementation, each after at least
-20 minutes idle and each confirmed against the log as the first request a new instance served.
+Discord's own round trip comes on top. Five cold requests and 25 warm ones per implementation, each
+cold request after at least 20 minutes idle and confirmed against the log as the first request a new
+instance served. "Worst" is the slowest of those, not a percentile: five samples cannot give a tail,
+so read it as a floor on how bad a cold start can be.
 Method, sources and raw data: [`bench/`](bench/README.md).
 
 What the numbers say:
 
-- __Go and Rust are the only options with real headroom__ inside Discord's 3 seconds. Rust is a
-  little quicker; at this scale the difference is a hundred or two milliseconds, not a reason to
-  switch.
+- __Go and Rust are the only options with real headroom__ inside Discord's 3 seconds: even their
+  slowest cold start left more than two seconds spare. Rust is a little quicker, but at this scale
+  the difference is a hundred or two milliseconds, not a reason to switch.
 - __Native compilation helps the managed runtimes but does not close the gap.__ GraalVM and .NET
   Native AOT cut their JVM or JIT cold start by roughly half, and still land at 1.5–2 seconds once
-  the Pub/Sub client's own start-up is counted.
+  the Pub/Sub client's own start-up is counted. GraalVM's slowest came within 0.2 seconds of the
+  deadline before any network time, and .NET's JIT build went over it.
 - __Python and Spring Boot miss the deadline on their own__, before Discord's network leg.
-- __Warm, nothing matters.__ Every implementation answers in 20–60 ms, and that is almost all the
-  Pub/Sub round trip.
+- __Warm, the language barely matters.__ Typical warm requests take 20–60 ms, almost all of it the
+  Pub/Sub round trip. About one in eight took longer, up to 0.85 seconds, in every language and
+  always on an instance that was already serving. That points at the shared parts, the publish or
+  CPU throttling between requests, rather than any runtime, and it stays well inside the deadline.
 
 The table this replaces was a Cloud Functions dummy function measured several years earlier. The
 archived [discord-bot-test-suite](https://github.com/pmgledhill102/discord-bot-test-suite) ran a
