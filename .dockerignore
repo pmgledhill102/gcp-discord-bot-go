@@ -13,7 +13,3 @@ LICENSE
 # and stops a comment edit here from triggering a recompile.
 Dockerfile
 .dockerignore
-
-# The cold-start benchmark: other languages' sources and the measuring client,
-# none of which the deployable reads.
-bench

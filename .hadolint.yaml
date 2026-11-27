@@ -6,4 +6,3 @@ trustedRegistries:
   - docker.io
   - gcr.io
   - ghcr.io
-  - mcr.microsoft.com

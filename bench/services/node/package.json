@@ -1,9 +1,0 @@
-{
-  "name": "bench-node",
-  "private": true,
-  "type": "module",
-  "main": "index.mjs",
-  "dependencies": {
-    "@google-cloud/pubsub": "6.4.1"
-  }
-}

@@ -124,7 +124,8 @@ Discord's own round trip comes on top. Five cold requests and 25 warm ones per i
 cold request after at least 20 minutes idle and confirmed against the log as the first request a new
 instance served. "Worst" is the slowest of those, not a percentile: five samples cannot give a tail,
 so read it as a floor on how bad a cold start can be.
-Method, sources and raw data: [`bench/`](bench/README.md).
+Method, caveats, what each port took to build, and the Rust dependency audit:
+[`docs/language-comparison.md`](docs/language-comparison.md).
 
 What the numbers say:
 
