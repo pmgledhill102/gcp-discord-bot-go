@@ -560,8 +560,9 @@ instead.
 ### Commit messages decide the version
 
 The version release-please proposes comes from [Conventional
-Commits](https://www.conventionalcommits.org/en/v1.0.0/), and this repo merges with merge
-commits, so it reads __every commit on the branch__, not the pull request title:
+Commits](https://www.conventionalcommits.org/en/v1.0.0/). This repo merges with merge
+commits, and __the merge commit's subject is the pull request title__, so the title is what
+release-please reliably reads. Give every pull request a title in the same form as its commits:
 
 | Commit | Release | Example |
 | ------ | ------- | ------- |
@@ -586,6 +587,24 @@ a MINOR under the list below — which `deps:` would release as a patch.
 __Mislabelling a breaking change is the one mistake nothing catches.__ A `fix:` that is really
 breaking releases as a patch, and a patch is exactly what consumers auto-merge, so it deploys
 itself unreviewed. Decide the position from the list below, then choose the type to match.
+
+__Why the title, and the repo setting it depends on.__ release-please walks `main` newest
+first by commit date and stops at the last release's commit. A pull request's own commits keep
+the dates they were made, so a branch opened before the last release (a Dependabot pull request,
+typically) has commits that sort behind that stopping point and are never read. That is how
+#106's golang bump merged after v1.0.1 and released nothing (#109). The merge commit is always
+the newest commit, so it is always read, and it carries the change only because the repository
+sets merge commit messages to the pull request title. Check that it still does:
+
+```sh
+gh api repos/pmgledhill102/gcp-discord-bot-go --jq '{merge_commit_title, merge_commit_message}'
+# {"merge_commit_message": "BLANK", "merge_commit_title": "PR_TITLE"}
+```
+
+If that setting ever goes back to GitHub's default ("Merge pull request #N from …"), releases
+depend on commit dates again and some changes silently release nothing. When a pull request's
+own commits are newer than the last release, release-please reads them as well as the merge
+commit, so the same change can appear twice in the changelog. That is cosmetic.
 
 A commit whose subject is not a Conventional Commit is not an error to release-please: it is
 silently left out of the version and the changelog. The `Commit messages` check
