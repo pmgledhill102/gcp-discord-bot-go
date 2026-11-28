@@ -73,9 +73,10 @@ auto-merge minor and patch bumps, so a breaking change released a position too
 low deploys itself; see "Releases and versioning" in the README before choosing
 a version.
 
-**Commit messages choose that version.** release-please reads every commit on a
-branch (this repo merges with merge commits), so every commit subject must be a
-Conventional Commit: `fix:` / `deps:` a patch, `feat:` a minor, `feat!:` or a
+**Commit messages choose that version.** This repo merges with merge commits
+whose subject is the PR title (a repository setting; see "Commit messages decide
+the version" in the README), so the PR title is what release-please reliably
+reads, and it must be a Conventional Commit like every commit subject: `fix:` / `deps:` a patch, `feat:` a minor, `feat!:` or a
 `BREAKING CHANGE:` footer a major, `docs:` / `chore:` / `ci:` and the rest no
 release of their own. A breaking change labelled `fix:` releases as a patch and
 deploys itself downstream, so decide the position first and pick the type to
