@@ -6,6 +6,7 @@
     "node_modules",
     "go.sum",
     "*.lock",
+    "CHANGELOG.md",
     ".git"
   ],
   "words": [
@@ -20,6 +21,7 @@
     "actionlint",
     "aquasecurity",
     "autobuild",
+    "autorelease",
     "axios",
     "axum",
     "bandit",

@@ -532,14 +532,65 @@ next one.
 
 ### Cutting a release
 
-```sh
-VERSION=v1.1.0
-git tag -a "$VERSION" -m "$VERSION"
-git push origin "$VERSION"
-```
+Releases are cut by [release-please](https://github.com/googleapis/release-please), from
+[`.github/workflows/release-please.yml`](.github/workflows/release-please.yml). Nobody types a
+version number or pushes a tag:
 
-Tag a commit on `main` that has passed CI. The workflow needs no secrets — it authenticates
-to GHCR as `GITHUB_TOKEN` with `packages: write`.
+1. Every push to `main` updates one open __release pull request__, titled
+   `chore(main): release X.Y.Z`. It proposes the next version, worked out from the commit
+   messages since the last release, and adds their entries to `CHANGELOG.md` (which the first
+   release creates).
+2. Merging that pull request is the release. release-please creates the `vX.Y.Z` tag and a
+   GitHub Release page, and the tag runs `release.yml`, which publishes the image as above.
+
+The release pull request is a deliberate gate: changes collect on `main` until someone decides
+to ship them. It is never auto-merged — the Dependabot auto-merge workflow acts only on pull
+requests opened by `dependabot[bot]`.
+
+release-please authenticates with a fine-grained personal access token, `RELEASE_PLEASE_PAT`,
+not `GITHUB_TOKEN`. GitHub starts no workflows from anything done with `GITHUB_TOKEN`, so a
+release created with it would produce a tag and no image, and report no error. The header of
+`release-please.yml` lists the permissions the token needs.
+
+Do not push a `v*` tag by hand. It would still publish an image, but release-please would not
+know about it, and its next release pull request would propose a version from the wrong
+starting point. To force a particular version, put a `Release-As: 2.0.0` footer in a commit
+instead.
+
+### Commit messages decide the version
+
+The version release-please proposes comes from [Conventional
+Commits](https://www.conventionalcommits.org/en/v1.0.0/), and this repo merges with merge
+commits, so it reads __every commit on the branch__, not the pull request title:
+
+| Commit | Release | Example |
+| ------ | ------- | ------- |
+| `fix:` or `deps:` | PATCH | `fix: return 401 for a truncated signature` |
+| `feat:` | MINOR | `feat: add an optional PUBSUB_ORDERING_KEY setting` |
+| `!` after the type, or a `BREAKING CHANGE:` footer | MAJOR | `feat!: rename PUBSUB_TOPIC_NAME to TOPIC` |
+| `perf:`, `revert:`, `build:` | PATCH | `build: strip debug symbols from the binary` |
+| `docs:`, `chore:`, `ci:`, `test:`, `refactor:`, `style:` | none on their own | `ci: bump actions/checkout` |
+
+"None on their own" means the commit is left out of the changelog and does not make a release
+pull request appear; it still ships in the next release that something else triggers. The
+mapping is `changelog-sections` in
+[`release-please-config.json`](release-please-config.json): a type releases exactly when its
+section is not hidden.
+
+Dependabot's commits already follow this: Go module and base image bumps arrive as `deps`, so a
+security fix becomes a patch release proposal without anyone rewording it, and Actions bumps
+arrive as `ci`, which release nothing because they change neither the image nor the module.
+The one Dependabot case to reword by hand is an upgrade that changes what the service does —
+a MINOR under the list below — which `deps:` would release as a patch.
+
+__Mislabelling a breaking change is the one mistake nothing catches.__ A `fix:` that is really
+breaking releases as a patch, and a patch is exactly what consumers auto-merge, so it deploys
+itself unreviewed. Decide the position from the list below, then choose the type to match.
+
+A commit whose subject is not a Conventional Commit is not an error to release-please: it is
+silently left out of the version and the changelog. The `Commit messages` check
+([`.github/workflows/commits.yml`](.github/workflows/commits.yml)) fails a pull request that
+adds one, so it is reworded before it merges rather than quietly never released.
 
 ### What the version numbers promise
 

@@ -1,0 +1,48 @@
+# Checks that every commit a pull request adds is a Conventional Commit.
+#
+# Commit subjects, not the PR title: this repo merges with merge commits, so
+# release-please (release-please.yml) reads each commit on the branch and
+# ignores the "Merge pull request" commit. A subject it cannot parse is not an
+# error to release-please -- the commit is silently left out of the changelog
+# and the version, so a fix written as "Fix the crash" would never be released.
+# This check makes that failure loud.
+#
+# It cannot catch the dangerous case, a breaking change labelled `fix:`, which
+# would release as a patch and auto-deploy downstream. Only a reviewer can.
+#
+# Merge commits are skipped: they come from GitHub (the merge button, the
+# update-branch API) rather than from whoever wrote the change. The types are
+# the ones release-please knows; any other type would parse, but would never
+# appear in a changelog or release. GitHub's own "Revert" button writes
+# `Revert "..."`, which fails here: reword it to `revert: ...`.
+name: Commit messages
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  conventional-commits:
+    name: Conventional Commits
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Check commit subjects
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          pattern='^(feat|fix|perf|deps|revert|docs|style|chore|refactor|test|build|ci)(\([a-z0-9._/-]+\))?!?: .+'
+          bad="$(git log --no-merges --format='%h %s' "${BASE}..${HEAD}" \
+            | grep -Ev "^[0-9a-f]+ ${pattern#^}" || true)"
+          if [ -n "$bad" ]; then
+            echo "::error::Commits whose subject is not a Conventional Commit. release-please ignores these, so they never reach a changelog or a release. See \"Commit messages decide the version\" in the README, then reword them (git rebase -i, reword):"
+            printf '%s\n' "$bad"
+            exit 1
+          fi
+          echo "Every commit subject is a Conventional Commit."
