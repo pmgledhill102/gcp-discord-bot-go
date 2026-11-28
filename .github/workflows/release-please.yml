@@ -1,0 +1,73 @@
+# Opens and maintains the release pull request, and cuts the release when that
+# pull request merges (#55). It never builds or publishes anything: merging the
+# release PR creates the `v*` tag, and the tag runs release.yml, which stays
+# the single publish path.
+#
+# Configuration lives in release-please-config.json and the current version in
+# .release-please-manifest.json. The version comes from Conventional Commits
+# since the last release -- `fix:` and `deps:` a patch, `feat:` a minor, `!` or
+# a `BREAKING CHANGE:` footer a major -- which is why the commit convention in
+# the README is load-bearing. bootstrap-sha in the config is ef772219, the
+# commit tagged v1.0.0; release-please normally finds that release from the
+# tag, and the SHA is only the backstop that stops it ever re-reading history
+# from before 1.0.0.
+#
+# It authenticates with RELEASE_PLEASE_PAT, NOT GITHUB_TOKEN, and the reason is
+# the whole point of this file. GitHub raises no workflow events for anything
+# done with GITHUB_TOKEN, so a release created with it would make a tag and a
+# Release page and never run release.yml: no image, and nothing reporting an
+# error. The same rule means a release PR opened with GITHUB_TOKEN would get no
+# pull_request CI runs, so its required checks would never report and it could
+# not merge. A missing secret fails the run rather than falling back.
+#
+# The PAT is a fine-grained token scoped to this repository alone, with
+# Contents, Pull requests and Issues read/write (Issues for the
+# `autorelease: pending` / `autorelease: tagged` labels release-please uses to
+# find its own pull requests). It needs no Workflows permission: the release PR
+# only touches CHANGELOG.md and the manifest.
+name: Release Please
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# Every write goes through the PAT, so the Actions token needs nothing.
+permissions: {}
+
+# Serialised, not cancelled: two runs racing on the same release PR can each
+# push to its branch, and a cancelled run can stop between tagging and
+# releasing.
+concurrency:
+  group: "${{ github.workflow }}"
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Release Please
+    # Forks have no secret and no reason to cut this repository's releases.
+    if: github.repository == 'pmgledhill102/gcp-discord-bot-go'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require RELEASE_PLEASE_PAT
+        env:
+          TOKEN: ${{ secrets.RELEASE_PLEASE_PAT }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::error::RELEASE_PLEASE_PAT is not set as an Actions secret. Refusing to fall back to GITHUB_TOKEN: a release created with it does not trigger release.yml, so no image would be published."
+            exit 1
+          fi
+
+      - name: Run release-please
+        id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_PAT }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      - name: Report the release
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          TAG: ${{ steps.release.outputs.tag_name }}
+        run: echo "::notice::Released ${TAG}. release.yml publishes the image from the tag; confirm it appears in GHCR."
