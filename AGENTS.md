@@ -73,6 +73,15 @@ auto-merge minor and patch bumps, so a breaking change released a position too
 low deploys itself; see "Releases and versioning" in the README before choosing
 a version.
 
+**Commit messages choose that version.** release-please reads every commit on a
+branch (this repo merges with merge commits), so every commit subject must be a
+Conventional Commit: `fix:` / `deps:` a patch, `feat:` a minor, `feat!:` or a
+`BREAKING CHANGE:` footer a major, `docs:` / `chore:` / `ci:` and the rest no
+release of their own. A breaking change labelled `fix:` releases as a patch and
+deploys itself downstream, so decide the position first and pick the type to
+match. Never push a `v*` tag by hand; merging the release PR cuts the release.
+The `Commit messages` check fails a PR containing a non-conventional subject.
+
 **Tests assert response bodies, not only status codes**, wherever two branches
 can produce the same status. A `400` from the malformed-body branch and a `400`
 from the unhandled-type branch are not the same thing, and a test that cannot
