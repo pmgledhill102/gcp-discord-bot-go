@@ -32,6 +32,10 @@ version: 2
 # NOT merge, which is the case worth seeing (paul-context#160).
 
 updates:
+  # Commit prefixes are read by release-please (#55): `deps` releases a patch,
+  # `ci` releases nothing, because a workflow change alters neither the image
+  # nor the module.
+  #
   # Enable updates for GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -101,7 +105,11 @@ updates:
       docker-major:
         patterns: ["*"]
         update-types: [major]
+    # `deps`, not `docker`: release-please (#55) only cuts a release for the
+    # types it knows, and a base image update changes the published image, so
+    # it has to release as a patch. `docker:` would also fail the
+    # Conventional Commits check in commits.yml.
     commit-message:
-      prefix: "docker"
+      prefix: "deps"
     assignees:
       - "pmgledhill102"
